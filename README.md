@@ -1,10 +1,26 @@
-# Codex Island
-
-![Codex Island icon](Resources/AppIcon-1024.png)
+<div align="center">
+  <img src="docs/images/codex-island-icon.png" width="96" height="96" alt="Codex Island 图标">
+  <h1>Codex Island</h1>
+  <p>在 MacBook 刘海两侧，随时查看 Codex 剩余额度。</p>
+</div>
 
 Codex Island 是一个为带刘海 MacBook 设计的原生 macOS 小工具。Codex 运行时，它会在刘海两侧显示当前 5 小时额度的剩余百分比和重置倒计时；单击刘海区域后，岛体向下展开，显示本周额度、重置时间与可用重置次数。
 
 ## 功能
+
+### 刘海常驻显示
+
+<img src="docs/images/compact.png" width="640" alt="Codex Island 在刘海两侧显示剩余额度与重置倒计时">
+
+最重要的 5 小时剩余额度固定显示在刘海左侧，重置倒计时显示在右侧。界面宽度贴合刘海，只在 Codex/ChatGPT 运行时出现。
+
+### 单击展开详情
+
+<img src="docs/images/details.png" width="640" alt="Codex Island 展开后的额度详情界面">
+
+单击刘海区域，岛体向下延伸，直接突出 5 小时额度和本周额度的重置时间，同时显示剩余百分比与可用重置次数。
+
+### 功能列表
 
 - 在刘海左侧显示 5 小时额度剩余百分比
 - 在刘海右侧显示重置倒计时：一小时以上显示 `h`，不足一小时显示 `m`
