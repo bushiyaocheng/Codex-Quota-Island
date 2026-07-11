@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 
 @MainActor
-final class UsageController: ObservableObject {
+final class UsageController: NSObject, ObservableObject {
     enum State: Equatable {
         case hidden
         case loading
@@ -28,15 +28,27 @@ final class UsageController: ObservableObject {
 
     func start() {
         evaluateCodexProcess()
-        monitorTimer = .scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.evaluateCodexProcess() }
-        }
-        refreshTimer = .scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.refresh() }
-        }
-        clockTimer = .scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.now = Date() }
-        }
+        monitorTimer = .scheduledTimer(
+            timeInterval: 2,
+            target: self,
+            selector: #selector(handleMonitorTimer),
+            userInfo: nil,
+            repeats: true
+        )
+        refreshTimer = .scheduledTimer(
+            timeInterval: 60,
+            target: self,
+            selector: #selector(handleRefreshTimer),
+            userInfo: nil,
+            repeats: true
+        )
+        clockTimer = .scheduledTimer(
+            timeInterval: 30,
+            target: self,
+            selector: #selector(handleClockTimer),
+            userInfo: nil,
+            repeats: true
+        )
     }
 
     func stop() {
@@ -51,6 +63,18 @@ final class UsageController: ObservableObject {
         client.readRateLimits { [weak self] result in
             Task { @MainActor in self?.apply(result) }
         }
+    }
+
+    @objc private func handleMonitorTimer() {
+        evaluateCodexProcess()
+    }
+
+    @objc private func handleRefreshTimer() {
+        refresh()
+    }
+
+    @objc private func handleClockTimer() {
+        now = Date()
     }
 
     private func evaluateCodexProcess() {
