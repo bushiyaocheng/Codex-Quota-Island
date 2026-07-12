@@ -47,11 +47,29 @@ final class UsageModelsTests: XCTestCase {
         XCTAssertEqual(snapshot.fiveHour.remainingPercent, 92)
         XCTAssertEqual(snapshot.weekly?.remainingPercent, 93)
         XCTAssertEqual(snapshot.resetCredits, 2)
-        XCTAssertEqual(snapshot.planType, "plus")
+        XCTAssertEqual(response.rateLimits.planType, "plus")
     }
 }
 
 final class PanelViewStateTests: XCTestCase {
+    func testExpansionPreferenceUsesOnePersistedMode() throws {
+        let suiteName = "ExpansionPreferenceTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertEqual(ExpansionPreference.mode(in: defaults), .hover)
+
+        ExpansionPreference.select(.click, in: defaults)
+        XCTAssertEqual(ExpansionPreference.mode(in: defaults), .click)
+        XCTAssertTrue(defaults.bool(forKey: "clickExpansionEnabled"))
+        XCTAssertFalse(defaults.bool(forKey: "hoverExpansionEnabled"))
+
+        ExpansionPreference.select(.hover, in: defaults)
+        XCTAssertEqual(ExpansionPreference.mode(in: defaults), .hover)
+        XCTAssertFalse(defaults.bool(forKey: "clickExpansionEnabled"))
+        XCTAssertTrue(defaults.bool(forKey: "hoverExpansionEnabled"))
+    }
+
     @MainActor
     func testInteractionExpansionCanBeResetWhenModeChanges() {
         let state = PanelViewState()

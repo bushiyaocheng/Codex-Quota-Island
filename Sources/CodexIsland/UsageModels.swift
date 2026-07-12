@@ -1,5 +1,4 @@
 import Foundation
-import SwiftUI
 
 struct UsageWindow: Codable, Equatable, Sendable {
     let usedPercent: Int
@@ -43,7 +42,6 @@ struct UsageSnapshot: Equatable, Sendable {
     let fiveHour: UsageWindow
     let weekly: UsageWindow?
     let resetCredits: Int
-    let planType: String?
     let fetchedAt: Date
 
     init?(response: RateLimitsResponse, fetchedAt: Date = Date()) {
@@ -51,7 +49,6 @@ struct UsageSnapshot: Equatable, Sendable {
         fiveHour = primary
         weekly = response.rateLimits.secondary
         resetCredits = response.rateLimitResetCredits?.availableCount ?? 0
-        planType = response.rateLimits.planType
         self.fetchedAt = fetchedAt
     }
 }
@@ -71,11 +68,4 @@ enum QuotaTone: Equatable {
         }
     }
 
-    var color: Color {
-        switch self {
-        case .normal: .white
-        case .warning: Color(red: 1.0, green: 0.61, blue: 0.18)
-        case .critical: Color(red: 1.0, green: 0.27, blue: 0.25)
-        }
-    }
 }

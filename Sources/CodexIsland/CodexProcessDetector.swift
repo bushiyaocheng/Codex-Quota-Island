@@ -4,6 +4,7 @@ import Foundation
 struct CodexInstallation: Equatable, Sendable {
     let appURL: URL
     let serverURL: URL
+    let processIdentifier: pid_t
 }
 
 @MainActor
@@ -30,6 +31,10 @@ final class CodexProcessDetector {
             .appendingPathComponent("codex", isDirectory: false)
 
         guard FileManager.default.isExecutableFile(atPath: serverURL.path) else { return nil }
-        return CodexInstallation(appURL: appURL, serverURL: serverURL)
+        return CodexInstallation(
+            appURL: appURL,
+            serverURL: serverURL,
+            processIdentifier: application.processIdentifier
+        )
     }
 }
