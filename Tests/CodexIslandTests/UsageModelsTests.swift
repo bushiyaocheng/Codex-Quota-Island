@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import CodexIsland
 
@@ -47,5 +48,96 @@ final class UsageModelsTests: XCTestCase {
         XCTAssertEqual(snapshot.weekly?.remainingPercent, 93)
         XCTAssertEqual(snapshot.resetCredits, 2)
         XCTAssertEqual(snapshot.planType, "plus")
+    }
+}
+
+final class PanelViewStateTests: XCTestCase {
+    @MainActor
+    func testInteractionExpansionCanBeResetWhenModeChanges() {
+        let state = PanelViewState()
+
+        state.toggleClickExpansion()
+        XCTAssertTrue(state.isExpanded)
+
+        state.resetInteractionExpansion()
+        XCTAssertFalse(state.isExpanded)
+
+        state.setHovering(true)
+        XCTAssertTrue(state.isExpanded)
+        state.setHovering(false)
+        XCTAssertFalse(state.isExpanded)
+    }
+
+    @MainActor
+    func testPhysicalCompactBarClickTogglesExpansionAtPanelLevel() throws {
+        let defaults = UserDefaults.standard
+        let originalMode = defaults.object(forKey: ExpansionPreference.storageKey)
+        let originalClickPreference = defaults.object(forKey: "clickExpansionEnabled")
+        let originalHoverPreference = defaults.object(forKey: "hoverExpansionEnabled")
+        defaults.set(ExpansionMode.click.rawValue, forKey: ExpansionPreference.storageKey)
+        defer {
+            if let originalMode {
+                defaults.set(originalMode, forKey: ExpansionPreference.storageKey)
+            } else {
+                defaults.removeObject(forKey: ExpansionPreference.storageKey)
+            }
+            if let originalClickPreference {
+                defaults.set(originalClickPreference, forKey: "clickExpansionEnabled")
+            } else {
+                defaults.removeObject(forKey: "clickExpansionEnabled")
+            }
+            if let originalHoverPreference {
+                defaults.set(originalHoverPreference, forKey: "hoverExpansionEnabled")
+            } else {
+                defaults.removeObject(forKey: "hoverExpansionEnabled")
+            }
+        }
+
+        let state = PanelViewState()
+        state.compactHeight = 32
+        let panel = IslandPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 319, height: 244),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.panelState = state
+        panel.contentView = NSView(frame: NSRect(x: 0, y: 0, width: 319, height: 244))
+
+        let event = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: NSPoint(x: 35, y: 228),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: panel.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 1
+        ))
+
+        panel.sendEvent(event)
+        XCTAssertTrue(state.isExpanded)
+
+        let menu = panel.makeCompactMenu()
+        XCTAssertEqual(menu.items.map(\.title), [
+            "鼠标点击展开",
+            "鼠标悬停展开",
+            "",
+            "立即刷新",
+            "登录时启动",
+            "",
+            "退出 Codex Island"
+        ])
+        XCTAssertEqual(menu.items[0].state, .on)
+        XCTAssertEqual(menu.items[1].state, .off)
+
+        menu.performActionForItem(at: 1)
+        XCTAssertEqual(ExpansionPreference.mode, .hover)
+        XCTAssertFalse(state.isExpanded)
+
+        let updatedMenu = panel.makeCompactMenu()
+        XCTAssertEqual(updatedMenu.items[0].state, .off)
+        XCTAssertEqual(updatedMenu.items[1].state, .on)
     }
 }
