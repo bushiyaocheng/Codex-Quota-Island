@@ -1,35 +1,4 @@
-import AppKit
 import SwiftUI
-
-@MainActor
-final class PanelViewState: ObservableObject {
-    static let expandedHeight: CGFloat = 244
-
-    @Published private(set) var isExpanded: Bool
-    @Published var notchWidth: CGFloat = 180
-    @Published var compactHeight: CGFloat = 34
-    let startsExpanded: Bool
-
-    init() {
-        startsExpanded = ProcessInfo.processInfo.arguments.contains("--expanded")
-        isExpanded = startsExpanded
-    }
-
-    func toggleClickExpansion() {
-        guard !startsExpanded else { return }
-        isExpanded.toggle()
-    }
-
-    func setHovering(_ hovering: Bool) {
-        guard !startsExpanded else { return }
-        isExpanded = hovering
-    }
-
-    func resetInteractionExpansion() {
-        guard !startsExpanded else { return }
-        isExpanded = false
-    }
-}
 
 struct NotchRootView: View {
     @ObservedObject var usage: UsageController
@@ -130,7 +99,9 @@ struct NotchRootView: View {
                 Text("\(window.remainingPercent)%")
                     .font(.system(size: 12.5, weight: .regular, design: .rounded))
                     .monospacedDigit()
-                    .foregroundStyle(QuotaTone(remainingPercent: window.remainingPercent).color)
+                    .foregroundStyle(
+                        QuotaTone(remainingPercent: window.remainingPercent).color(normal: .white)
+                    )
             } else {
                 ProgressView().controlSize(.small).tint(.white)
             }
@@ -280,151 +251,4 @@ struct NotchRootView: View {
         formatter.dateFormat = "HH:mm:ss"
         return formatter
     }()
-}
-
-enum ExpansionMode: String {
-    case click
-    case hover
-}
-
-enum ExpansionPreference {
-    static let storageKey = "islandExpansionMode"
-    private static let legacyClickStorageKey = "clickExpansionEnabled"
-    private static let legacyHoverStorageKey = "hoverExpansionEnabled"
-
-    static var mode: ExpansionMode {
-        get {
-            let defaults = UserDefaults.standard
-            if let rawValue = defaults.string(forKey: storageKey),
-               let mode = ExpansionMode(rawValue: rawValue) {
-                return mode
-            }
-
-            if defaults.bool(forKey: legacyClickStorageKey),
-               !defaults.bool(forKey: legacyHoverStorageKey) {
-                return .click
-            }
-            return .hover
-        }
-        set {
-            let defaults = UserDefaults.standard
-            defaults.set(newValue.rawValue, forKey: storageKey)
-            defaults.set(newValue == .click, forKey: legacyClickStorageKey)
-            defaults.set(newValue == .hover, forKey: legacyHoverStorageKey)
-        }
-    }
-
-    static func select(_ mode: ExpansionMode) {
-        let defaults = UserDefaults.standard
-        guard self.mode != mode else { return }
-        defaults.set(mode.rawValue, forKey: storageKey)
-        defaults.set(mode == .click, forKey: legacyClickStorageKey)
-        defaults.set(mode == .hover, forKey: legacyHoverStorageKey)
-    }
-}
-
-private enum IslandPalette {
-    static let background = Color(red: 0.035, green: 0.037, blue: 0.045)
-    static let blue = Color(red: 0.31, green: 0.58, blue: 1.0)
-    static let cyan = Color(red: 0.32, green: 0.82, blue: 0.90)
-}
-
-private struct QuotaRing: View {
-    let percent: Int
-    let healthyColor: Color
-
-    private var color: Color {
-        switch QuotaTone(remainingPercent: percent) {
-        case .normal: healthyColor
-        case .warning, .critical: QuotaTone(remainingPercent: percent).color
-        }
-    }
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(.white.opacity(0.12), lineWidth: 1.7)
-            Circle()
-                .trim(from: 0, to: CGFloat(percent) / 100)
-                .stroke(
-                    color,
-                    style: StrokeStyle(lineWidth: 1.7, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-        }
-        .frame(width: 11, height: 11)
-    }
-}
-
-private struct QuotaRow: View {
-    let title: String
-    let window: UsageWindow
-    let resetText: String
-    let accent: Color
-
-    var body: some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.58))
-
-                HStack(spacing: 6) {
-                    Image(systemName: "clock")
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(accent.opacity(0.48))
-                    highlightedResetText
-                        .font(.system(size: 12.5, weight: .medium, design: .rounded))
-                }
-            }
-
-            Spacer(minLength: 8)
-
-            DetailQuotaRing(percent: window.remainingPercent, accent: accent)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 3)
-    }
-
-    private var highlightedResetText: Text {
-        guard resetText.hasSuffix("重置") else {
-            return Text(resetText).foregroundColor(.white.opacity(0.72))
-        }
-
-        let time = resetText.dropLast(2).trimmingCharacters(in: .whitespaces)
-        return Text("\(time) ").foregroundColor(accent.opacity(0.94))
-            + Text("重置").foregroundColor(.white.opacity(0.82))
-    }
-}
-
-private struct DetailQuotaRing: View {
-    let percent: Int
-    let accent: Color
-
-    private var color: Color {
-        switch QuotaTone(remainingPercent: percent) {
-        case .normal: accent
-        case .warning, .critical: QuotaTone(remainingPercent: percent).color
-        }
-    }
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(Color.white.opacity(0.035))
-            Circle()
-                .stroke(Color.white.opacity(0.12), lineWidth: 2.4)
-            Circle()
-                .trim(from: 0, to: CGFloat(percent) / 100)
-                .stroke(color, style: StrokeStyle(lineWidth: 2.4, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-            Text("\(percent)%")
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(.white.opacity(0.94))
-        }
-        .frame(width: 42, height: 42)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("剩余 \(percent)%")
-    }
 }

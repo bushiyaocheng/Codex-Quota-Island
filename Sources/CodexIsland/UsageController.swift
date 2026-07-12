@@ -20,16 +20,19 @@ final class UsageController: NSObject, ObservableObject {
     private var monitorTimer: Timer?
     private var refreshTimer: Timer?
     private var clockTimer: Timer?
+    private var isStarted = false
     private var isConnecting = false
+    private var isRefreshing = false
     private var nextRetryAt = Date.distantPast
     private var retryDelay: TimeInterval = 15
 
-    var isVisible: Bool { state != .hidden }
-
     func start() {
+        guard !isStarted else { return }
+        isStarted = true
+        observeWorkspaceChanges()
         evaluateCodexProcess()
         monitorTimer = .scheduledTimer(
-            timeInterval: 2,
+            timeInterval: 30,
             target: self,
             selector: #selector(handleMonitorTimer),
             userInfo: nil,
@@ -55,13 +58,28 @@ final class UsageController: NSObject, ObservableObject {
         monitorTimer?.invalidate()
         refreshTimer?.invalidate()
         clockTimer?.invalidate()
+        monitorTimer = nil
+        refreshTimer = nil
+        clockTimer = nil
+        let center = NSWorkspace.shared.notificationCenter
+        center.removeObserver(self)
+        isStarted = false
+        isConnecting = false
+        isRefreshing = false
         client.stop()
     }
 
     func refresh() {
-        guard activeInstallation != nil, !isConnecting else { return }
+        guard let installation = activeInstallation,
+              !isConnecting,
+              !isRefreshing else { return }
+        isRefreshing = true
         client.readRateLimits { [weak self] result in
-            Task { @MainActor in self?.apply(result) }
+            Task { @MainActor in
+                guard let self, self.activeInstallation == installation else { return }
+                self.isRefreshing = false
+                self.apply(result)
+            }
         }
     }
 
@@ -77,6 +95,10 @@ final class UsageController: NSObject, ObservableObject {
         now = Date()
     }
 
+    @objc private func handleWorkspaceChange() {
+        evaluateCodexProcess()
+    }
+
     private func evaluateCodexProcess() {
         let installation = detector.runningInstallation()
         if installation == activeInstallation {
@@ -90,6 +112,8 @@ final class UsageController: NSObject, ObservableObject {
         }
 
         activeInstallation = installation
+        isConnecting = false
+        isRefreshing = false
         client.stop()
 
         guard let installation else {
@@ -98,6 +122,7 @@ final class UsageController: NSObject, ObservableObject {
             retryDelay = 15
             state = .hidden
             snapshot = nil
+            AppLog.usage.info("Codex is not running; hiding island")
             return
         }
 
@@ -107,16 +132,28 @@ final class UsageController: NSObject, ObservableObject {
     private func connect(to installation: CodexInstallation) {
         state = .loading
         isConnecting = true
-        client.start(executableURL: installation.serverURL) { [weak self] result in
+        isRefreshing = false
+        AppLog.usage.info("Connecting to Codex process \(installation.processIdentifier, privacy: .public)")
+        client.start(
+            executableURL: installation.serverURL,
+            onDisconnect: { [weak self] error in
+                Task { @MainActor in
+                    self?.handleUnexpectedDisconnect(error, from: installation)
+                }
+            }
+        ) { [weak self] result in
             Task { @MainActor in
                 guard let self else { return }
+                guard self.activeInstallation == installation else { return }
                 self.isConnecting = false
                 switch result {
                 case .success:
+                    AppLog.usage.info("Connected to Codex")
                     self.retryDelay = 15
                     self.nextRetryAt = .distantPast
                     self.refresh()
                 case let .failure(error):
+                    AppLog.usage.error("Connection failed: \(error.localizedDescription, privacy: .private)")
                     self.state = .stale(error.localizedDescription)
                     self.scheduleRetry()
                 }
@@ -133,9 +170,34 @@ final class UsageController: NSObject, ObservableObject {
             }
             self.snapshot = snapshot
             state = .ready
+            AppLog.usage.info("Usage refreshed")
         case let .failure(error):
+            AppLog.usage.error("Refresh failed: \(error.localizedDescription, privacy: .private)")
             state = .stale(error.localizedDescription)
             scheduleRetry()
+        }
+    }
+
+    private func handleUnexpectedDisconnect(_ error: Error, from installation: CodexInstallation) {
+        guard activeInstallation == installation, !isConnecting else { return }
+        AppLog.usage.notice("Codex app-server disconnected; scheduling retry")
+        isRefreshing = false
+        state = .stale(error.localizedDescription)
+        scheduleRetry()
+    }
+
+    private func observeWorkspaceChanges() {
+        let center = NSWorkspace.shared.notificationCenter
+        [
+            NSWorkspace.didLaunchApplicationNotification,
+            NSWorkspace.didTerminateApplicationNotification
+        ].forEach { name in
+            center.addObserver(
+                self,
+                selector: #selector(handleWorkspaceChange),
+                name: name,
+                object: nil
+            )
         }
     }
 

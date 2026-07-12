@@ -2,9 +2,8 @@ import Foundation
 import ServiceManagement
 
 @MainActor
-final class LaunchAtLoginController: ObservableObject {
-    @Published private(set) var isEnabled = false
-    @Published private(set) var errorMessage: String?
+final class LaunchAtLoginController {
+    private(set) var isEnabled = false
 
     var isAvailable: Bool {
         Bundle.main.bundleURL.pathExtension == "app"
@@ -16,7 +15,7 @@ final class LaunchAtLoginController: ObservableObject {
 
     func setEnabled(_ enabled: Bool) {
         guard isAvailable else {
-            errorMessage = "请先运行打包后的 Codex Island.app"
+            AppLog.launchAtLogin.warning("Launch at login requires an app bundle")
             return
         }
 
@@ -26,9 +25,8 @@ final class LaunchAtLoginController: ObservableObject {
             } else {
                 try SMAppService.mainApp.unregister()
             }
-            errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            AppLog.launchAtLogin.error("Failed to update launch at login: \(error.localizedDescription, privacy: .private)")
         }
         refresh()
     }
