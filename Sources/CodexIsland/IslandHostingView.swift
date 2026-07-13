@@ -12,10 +12,13 @@ final class IslandHostingView: NSHostingView<NotchRootView> {
         self.panelState = panelState
         super.init(rootView: rootView)
 
-        panelState.$isExpanded
-            .combineLatest(panelState.$compactHeight)
+        Publishers.CombineLatest3(
+            panelState.$isExpanded,
+            panelState.$compactHeight,
+            panelState.$expandedHeight
+        )
             .removeDuplicates { lhs, rhs in
-                lhs.0 == rhs.0 && lhs.1 == rhs.1
+                lhs.0 == rhs.0 && lhs.1 == rhs.1 && lhs.2 == rhs.2
             }
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
@@ -71,7 +74,7 @@ final class IslandHostingView: NSHostingView<NotchRootView> {
     private var activeRect: NSRect {
         let height = min(
             bounds.height,
-            panelState.isExpanded ? PanelViewState.expandedHeight : panelState.compactHeight
+            panelState.isExpanded ? panelState.expandedHeight : panelState.compactHeight
         )
         let originY = isFlipped ? bounds.minY : bounds.maxY - height
         return NSRect(x: bounds.minX, y: originY, width: bounds.width, height: height)

@@ -165,7 +165,7 @@ final class UsageController: NSObject, ObservableObject {
         switch result {
         case let .success(response):
             guard let snapshot = UsageSnapshot(response: response) else {
-                state = .stale("Codex 没有返回 5 小时额度窗口")
+                state = .stale("Codex 没有返回额度窗口")
                 return
             }
             self.snapshot = snapshot

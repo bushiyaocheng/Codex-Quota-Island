@@ -6,6 +6,24 @@ enum IslandPalette {
     static let cyan = Color(red: 0.32, green: 0.82, blue: 0.90)
 }
 
+extension QuotaWindowKind {
+    var accent: Color {
+        switch self {
+        case .fiveHour: IslandPalette.cyan
+        case .weekly: IslandPalette.blue
+        case .duration, .unknown: IslandPalette.blue
+        }
+    }
+
+    var compactResetSymbol: String {
+        switch self {
+        case .fiveHour: "clock"
+        case .weekly: "calendar"
+        case .duration, .unknown: "arrow.clockwise"
+        }
+    }
+}
+
 extension QuotaTone {
     func color(normal: Color) -> Color {
         switch self {
