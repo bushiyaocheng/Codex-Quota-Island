@@ -14,14 +14,6 @@ extension QuotaWindowKind {
         case .duration, .unknown: IslandPalette.blue
         }
     }
-
-    var compactResetSymbol: String {
-        switch self {
-        case .fiveHour: "clock"
-        case .weekly: "calendar"
-        case .duration, .unknown: "arrow.clockwise"
-        }
-    }
 }
 
 extension QuotaTone {

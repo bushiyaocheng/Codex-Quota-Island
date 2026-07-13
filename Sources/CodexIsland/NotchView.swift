@@ -40,8 +40,10 @@ struct NotchRootView: View {
             detailPanel
                 .padding(.top, panel.compactHeight)
                 .opacity(panel.isExpanded ? 1 : 0)
+                .blur(radius: panel.isExpanded ? 0 : 7)
+                .scaleEffect(panel.isExpanded ? 1 : 0.985, anchor: .top)
                 .allowsHitTesting(panel.isExpanded)
-                .animation(.easeOut(duration: 0.15).delay(panel.isExpanded ? 0.055 : 0), value: panel.isExpanded)
+                .animation(detailAnimation, value: panel.isExpanded)
 
         }
         .frame(width: islandWidth, height: islandHeight, alignment: .top)
@@ -59,7 +61,7 @@ struct NotchRootView: View {
         }
         .shadow(color: IslandPalette.blue.opacity(panel.isExpanded ? 0.08 : 0), radius: 16, y: 8)
         .shadow(color: .black.opacity(panel.isExpanded ? 0.38 : 0), radius: 26, y: 14)
-        .animation(reduceMotion ? .linear(duration: 0.01) : .easeOut(duration: 0.22), value: panel.isExpanded)
+        .animation(surfaceAnimation, value: panel.isExpanded)
     }
 
     private var islandShape: UnevenRoundedRectangle {
@@ -70,6 +72,18 @@ struct NotchRootView: View {
             topTrailingRadius: 0,
             style: .continuous
         )
+    }
+
+    private var surfaceAnimation: Animation {
+        reduceMotion
+            ? .linear(duration: 0.01)
+            : .smooth(duration: 0.36)
+    }
+
+    private var detailAnimation: Animation {
+        guard !reduceMotion else { return .linear(duration: 0.01) }
+        return .easeOut(duration: panel.isExpanded ? 0.22 : 0.12)
+            .delay(panel.isExpanded ? 0.09 : 0)
     }
 
     private var compactBar: some View {
@@ -113,9 +127,9 @@ struct NotchRootView: View {
 
     private var resetMetric: some View {
         HStack(spacing: 5) {
-            Image(systemName: usage.snapshot?.compactWindow?.kind.compactResetSymbol ?? "arrow.clockwise")
+            Image(systemName: "arrow.clockwise")
                 .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle((usage.snapshot?.compactWindow?.kind.accent ?? IslandPalette.blue).opacity(0.78))
+                .foregroundStyle(IslandPalette.blue.opacity(0.78))
             Text(usage.snapshot?.compactWindow?.usage.remainingResetText(at: usage.now) ?? "--")
                 .font(.system(size: 12.5, weight: .regular, design: .rounded))
                 .foregroundStyle(.white.opacity(0.82))
