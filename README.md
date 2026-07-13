@@ -80,13 +80,13 @@ account/rateLimits/read
 
 读取字段包括：
 
-- `primary.usedPercent`：5 小时窗口已用百分比
-- `primary.resetsAt`：5 小时窗口重置时间
-- `secondary.usedPercent`：每周窗口已用百分比
-- `secondary.resetsAt`：每周窗口重置时间
+- `primary` / `secondary`：服务端当前提供的额度窗口，不假设固定类型或顺序
+- `windowDurationMins`：用于识别 5 小时、本周或其他持续时间的额度窗口
+- `usedPercent`：对应窗口的已用百分比
+- `resetsAt`：对应窗口的重置时间
 - `rateLimitResetCredits.availableCount`：可用重置次数
 
-剩余百分比由 `100 - usedPercent` 得出。app-server 属于 Codex 客户端协议，未来 Codex 更新可能改变方法或字段；协议访问已集中在 `AppServerClient.swift` 中，便于维护。
+窗口会按持续时间排序；紧凑状态显示最短窗口，展开状态按服务端实际返回数量自动增减行和高度。剩余百分比由 `100 - usedPercent` 得出。app-server 属于 Codex 客户端协议，未来 Codex 更新可能改变方法或字段；协议访问已集中在 `AppServerClient.swift` 中，便于维护。
 
 ## 从源码构建
 

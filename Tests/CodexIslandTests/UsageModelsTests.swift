@@ -22,9 +22,11 @@ final class UsageModelsTests: XCTestCase {
 
     func testRemainingResetTextUsesHoursThenMinutes() {
         let now = Date(timeIntervalSince1970: 1_000_000)
+        let days = UsageWindow(usedPercent: 0, windowDurationMins: 10_080, resetsAt: 1_000_000 + 6 * 86_400 + 12 * 3_600)
         let hours = UsageWindow(usedPercent: 0, windowDurationMins: 300, resetsAt: 1_000_000 + 4 * 3_600 + 35 * 60)
         let minutes = UsageWindow(usedPercent: 0, windowDurationMins: 300, resetsAt: 1_000_000 + 47 * 60 + 10)
 
+        XCTAssertEqual(days.remainingResetText(at: now), "6d")
         XCTAssertEqual(hours.remainingResetText(at: now), "4h")
         XCTAssertEqual(minutes.remainingResetText(at: now), "48m")
     }
@@ -44,14 +46,69 @@ final class UsageModelsTests: XCTestCase {
         let response = try JSONDecoder().decode(RateLimitsResponse.self, from: Data(json.utf8))
         let snapshot = try XCTUnwrap(UsageSnapshot(response: response))
 
-        XCTAssertEqual(snapshot.fiveHour.remainingPercent, 92)
-        XCTAssertEqual(snapshot.weekly?.remainingPercent, 93)
+        XCTAssertEqual(snapshot.windows.map(\.kind), [.fiveHour, .weekly])
+        XCTAssertEqual(snapshot.windows.map(\.usage.remainingPercent), [92, 93])
+        XCTAssertEqual(snapshot.compactWindow?.kind, .fiveHour)
         XCTAssertEqual(snapshot.resetCredits, 2)
         XCTAssertEqual(response.rateLimits.planType, "plus")
+    }
+
+    func testWeeklyPrimaryWithoutSecondaryIsIdentifiedByDuration() throws {
+        let weekly = UsageWindow(usedPercent: 12, windowDurationMins: 10_080, resetsAt: 1_800_000_000)
+        let response = RateLimitsResponse(
+            rateLimits: RateLimitSnapshot(primary: weekly, secondary: nil, planType: "plus"),
+            rateLimitResetCredits: nil
+        )
+
+        let snapshot = try XCTUnwrap(UsageSnapshot(response: response))
+
+        XCTAssertEqual(snapshot.windows.count, 1)
+        XCTAssertEqual(snapshot.windows.first?.kind, .weekly)
+        XCTAssertEqual(snapshot.windows.first?.kind.title, "本周额度")
+        XCTAssertEqual(snapshot.compactWindow?.usage.remainingPercent, 88)
+        XCTAssertNil(snapshot.resetCredits)
+    }
+
+    func testWindowsAreSortedByDurationInsteadOfServerPosition() throws {
+        let weekly = UsageWindow(usedPercent: 12, windowDurationMins: 10_080, resetsAt: nil)
+        let fiveHour = UsageWindow(usedPercent: 30, windowDurationMins: 300, resetsAt: nil)
+        let response = RateLimitsResponse(
+            rateLimits: RateLimitSnapshot(primary: weekly, secondary: fiveHour, planType: nil),
+            rateLimitResetCredits: ResetCreditsSummary(availableCount: 0)
+        )
+
+        let snapshot = try XCTUnwrap(UsageSnapshot(response: response))
+
+        XCTAssertEqual(snapshot.windows.map(\.kind), [.fiveHour, .weekly])
+        XCTAssertEqual(snapshot.compactWindow?.kind, .fiveHour)
+        XCTAssertEqual(snapshot.resetCredits, 0)
+    }
+
+    func testUnknownWindowDurationsGetTruthfulGeneratedTitles() {
+        XCTAssertEqual(QuotaWindowKind(durationMinutes: 1_440).title, "24 小时额度")
+        XCTAssertEqual(QuotaWindowKind(durationMinutes: 90).title, "90 分钟额度")
+        XCTAssertEqual(QuotaWindowKind(durationMinutes: nil).title, "额度窗口")
     }
 }
 
 final class PanelViewStateTests: XCTestCase {
+    @MainActor
+    func testExpandedHeightTracksVisibleContent() {
+        let state = PanelViewState()
+
+        state.updateContent(windowCount: 2, showsResetCredits: true)
+        XCTAssertEqual(state.expandedHeight, 244)
+
+        state.updateContent(windowCount: 1, showsResetCredits: true)
+        XCTAssertEqual(state.expandedHeight, 195)
+
+        state.updateContent(windowCount: 1, showsResetCredits: false)
+        XCTAssertEqual(state.expandedHeight, 161)
+
+        state.updateContent(windowCount: 3, showsResetCredits: true)
+        XCTAssertEqual(state.expandedHeight, 293)
+    }
+
     func testExpansionPreferenceUsesOnePersistedMode() throws {
         let suiteName = "ExpansionPreferenceTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))

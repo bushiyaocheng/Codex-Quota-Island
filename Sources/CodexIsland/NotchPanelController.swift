@@ -33,11 +33,32 @@ final class NotchPanelController {
         let rootView = NotchRootView(usage: usage, panel: viewState)
         panel.contentView = IslandHostingView(rootView: rootView, panelState: viewState)
 
+        usage.$snapshot
+            .receive(on: RunLoop.main)
+            .sink { [weak self] snapshot in
+                guard let self else { return }
+                self.viewState.updateContent(
+                    windowCount: snapshot?.windows.count ?? 0,
+                    showsResetCredits: snapshot?.resetCredits != nil
+                )
+                self.layoutPanel()
+            }
+            .store(in: &cancellables)
+
         usage.$state
             .receive(on: RunLoop.main)
             .sink { [weak self] state in
                 self?.updateVisibility(for: state)
             }
+            .store(in: &cancellables)
+
+        viewState.$isExpanded
+            .combineLatest(viewState.$expandedHeight)
+            .removeDuplicates { lhs, rhs in
+                lhs.0 == rhs.0 && lhs.1 == rhs.1
+            }
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.layoutPanel() }
             .store(in: &cancellables)
 
         NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
@@ -70,7 +91,7 @@ final class NotchPanelController {
         viewState.compactHeight = compactHeight
 
         let width: CGFloat = notchWidth + 140
-        let height = PanelViewState.expandedHeight
+        let height = viewState.isExpanded ? viewState.expandedHeight : compactHeight
         let frame = NSRect(
             x: screen.frame.midX - width / 2,
             y: screen.frame.maxY - height,

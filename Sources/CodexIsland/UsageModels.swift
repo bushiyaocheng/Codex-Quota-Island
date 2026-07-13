@@ -16,11 +16,50 @@ struct UsageWindow: Codable, Equatable, Sendable {
     func remainingResetText(at now: Date) -> String {
         guard let resetDate else { return "--" }
         let seconds = max(0, resetDate.timeIntervalSince(now))
+        if seconds >= 2 * 86_400 {
+            return "\(Int(seconds / 86_400))d"
+        }
         if seconds >= 3_600 {
             return "\(Int(seconds / 3_600))h"
         }
         return "\(Int(ceil(seconds / 60)))m"
     }
+}
+
+enum QuotaWindowKind: Equatable, Sendable {
+    case fiveHour
+    case weekly
+    case duration(minutes: Int)
+    case unknown
+
+    init(durationMinutes: Int?) {
+        switch durationMinutes {
+        case 300: self = .fiveHour
+        case 10_080: self = .weekly
+        case let minutes? where minutes > 0: self = .duration(minutes: minutes)
+        default: self = .unknown
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .fiveHour:
+            "5 小时额度"
+        case .weekly:
+            "本周额度"
+        case let .duration(minutes) where minutes.isMultiple(of: 60):
+            "\(minutes / 60) 小时额度"
+        case let .duration(minutes):
+            "\(minutes) 分钟额度"
+        case .unknown:
+            "额度窗口"
+        }
+    }
+}
+
+struct QuotaWindow: Equatable, Sendable {
+    let kind: QuotaWindowKind
+    let usage: UsageWindow
 }
 
 struct RateLimitSnapshot: Codable, Equatable, Sendable {
@@ -39,16 +78,37 @@ struct RateLimitsResponse: Codable, Equatable, Sendable {
 }
 
 struct UsageSnapshot: Equatable, Sendable {
-    let fiveHour: UsageWindow
-    let weekly: UsageWindow?
-    let resetCredits: Int
+    let windows: [QuotaWindow]
+    let resetCredits: Int?
     let fetchedAt: Date
 
+    var compactWindow: QuotaWindow? {
+        windows.first
+    }
+
     init?(response: RateLimitsResponse, fetchedAt: Date = Date()) {
-        guard let primary = response.rateLimits.primary else { return nil }
-        fiveHour = primary
-        weekly = response.rateLimits.secondary
-        resetCredits = response.rateLimitResetCredits?.availableCount ?? 0
+        let positionedWindows = [response.rateLimits.primary, response.rateLimits.secondary]
+            .enumerated()
+            .compactMap { position, window -> (Int, UsageWindow)? in
+                window.map { (position, $0) }
+            }
+
+        guard !positionedWindows.isEmpty else { return nil }
+
+        windows = positionedWindows
+            .sorted { lhs, rhs in
+                let leftDuration = lhs.1.windowDurationMins ?? .max
+                let rightDuration = rhs.1.windowDurationMins ?? .max
+                if leftDuration == rightDuration { return lhs.0 < rhs.0 }
+                return leftDuration < rightDuration
+            }
+            .map { _, window in
+                QuotaWindow(
+                    kind: QuotaWindowKind(durationMinutes: window.windowDurationMins),
+                    usage: window
+                )
+            }
+        resetCredits = response.rateLimitResetCredits?.availableCount
         self.fetchedAt = fetchedAt
     }
 }

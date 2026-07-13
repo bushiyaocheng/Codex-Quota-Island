@@ -8,7 +8,7 @@ struct NotchRootView: View {
     private let sideWidth: CGFloat = 70
     private var islandWidth: CGFloat { panel.notchWidth + sideWidth * 2 }
     private var islandHeight: CGFloat {
-        panel.isExpanded ? PanelViewState.expandedHeight : panel.compactHeight
+        panel.isExpanded ? panel.expandedHeight : panel.compactHeight
     }
 
     var body: some View {
@@ -29,7 +29,7 @@ struct NotchRootView: View {
                     transaction.animation = nil
                 }
         }
-        .frame(width: islandWidth, height: PanelViewState.expandedHeight, alignment: .top)
+        .frame(width: islandWidth, height: panel.expandedHeight, alignment: .top)
         .ignoresSafeArea()
     }
 
@@ -94,13 +94,13 @@ struct NotchRootView: View {
 
     private var compactMetric: some View {
         HStack(spacing: 4) {
-            if let window = usage.snapshot?.fiveHour {
-                QuotaRing(percent: window.remainingPercent, healthyColor: IslandPalette.blue)
-                Text("\(window.remainingPercent)%")
+            if let quota = usage.snapshot?.compactWindow {
+                QuotaRing(percent: quota.usage.remainingPercent, healthyColor: quota.kind.accent)
+                Text("\(quota.usage.remainingPercent)%")
                     .font(.system(size: 12.5, weight: .regular, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(
-                        QuotaTone(remainingPercent: window.remainingPercent).color(normal: .white)
+                        QuotaTone(remainingPercent: quota.usage.remainingPercent).color(normal: .white)
                     )
             } else {
                 ProgressView().controlSize(.small).tint(.white)
@@ -113,10 +113,10 @@ struct NotchRootView: View {
 
     private var resetMetric: some View {
         HStack(spacing: 5) {
-            Image(systemName: "arrow.clockwise")
+            Image(systemName: usage.snapshot?.compactWindow?.kind.compactResetSymbol ?? "arrow.clockwise")
                 .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(IslandPalette.blue.opacity(0.78))
-            Text(usage.snapshot?.fiveHour.remainingResetText(at: usage.now) ?? "--")
+                .foregroundStyle((usage.snapshot?.compactWindow?.kind.accent ?? IslandPalette.blue).opacity(0.78))
+            Text(usage.snapshot?.compactWindow?.usage.remainingResetText(at: usage.now) ?? "--")
                 .font(.system(size: 12.5, weight: .regular, design: .rounded))
                 .foregroundStyle(.white.opacity(0.82))
                 .monospacedDigit()
@@ -155,46 +155,70 @@ struct NotchRootView: View {
             .padding(.bottom, 8)
 
             VStack(spacing: 0) {
-                if let fiveHour = usage.snapshot?.fiveHour {
-                    QuotaRow(
-                        title: "5 小时额度",
-                        window: fiveHour,
-                        resetText: fiveHour.resetDate.map { "\(Self.fullDate.string(from: $0)) 重置" } ?? "重置时间未知",
-                        accent: IslandPalette.cyan
-                    )
-                }
+                if quotaWindows.isEmpty {
+                    HStack(spacing: 8) {
+                        if case .loading = usage.state {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(.white.opacity(0.7))
+                        }
+                        Text(emptyQuotaText)
+                            .font(.system(size: 11.5, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.52))
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .frame(height: 48)
+                } else {
+                    ForEach(Array(quotaWindows.enumerated()), id: \.offset) { index, quota in
+                        QuotaRow(
+                            title: quota.kind.title,
+                            window: quota.usage,
+                            resetText: quota.usage.resetDate.map {
+                                "\(Self.fullDate.string(from: $0)) 重置"
+                            } ?? "重置时间未知",
+                            accent: quota.kind.accent
+                        )
 
-                Divider()
-                    .overlay(Color.white.opacity(0.08))
-                    .padding(.horizontal, 4)
-
-                if let weekly = usage.snapshot?.weekly {
-                    QuotaRow(
-                        title: "本周额度",
-                        window: weekly,
-                        resetText: weekly.resetDate.map { "\(Self.fullDate.string(from: $0)) 重置" } ?? "重置时间未知",
-                        accent: IslandPalette.blue
-                    )
+                        if index < quotaWindows.count - 1 {
+                            Divider()
+                                .overlay(Color.white.opacity(0.08))
+                                .padding(.horizontal, 4)
+                        }
+                    }
                 }
             }
             .padding(.horizontal, 10)
 
-            HStack {
-                Label("可用重置", systemImage: "arrow.counterclockwise.circle")
-                    .font(.system(size: 11.5, weight: .regular, design: .rounded))
-                    .foregroundStyle(IslandPalette.cyan.opacity(0.76))
-                Spacer()
-                Text("\(usage.snapshot?.resetCredits ?? 0) 次")
-                    .font(.system(size: 13.5, weight: .medium, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(.white)
+            if let resetCredits = usage.snapshot?.resetCredits {
+                HStack {
+                    Label("可用重置", systemImage: "arrow.counterclockwise.circle")
+                        .font(.system(size: 11.5, weight: .regular, design: .rounded))
+                        .foregroundStyle(IslandPalette.cyan.opacity(0.76))
+                    Spacer()
+                    Text("\(resetCredits) 次")
+                        .font(.system(size: 13.5, weight: .medium, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(.white)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
 
             footer
                 .padding(.horizontal, 14)
                 .padding(.bottom, 10)
+        }
+    }
+
+    private var quotaWindows: [QuotaWindow] {
+        usage.snapshot?.windows ?? []
+    }
+
+    private var emptyQuotaText: String {
+        switch usage.state {
+        case .loading: "正在读取额度"
+        case .ready, .stale, .hidden: "暂无额度数据"
         }
     }
 
