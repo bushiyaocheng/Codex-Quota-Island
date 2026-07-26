@@ -11,9 +11,9 @@ final class FileShelfStore: ObservableObject {
     ]
 
     @Published private(set) var items: [FileShelfItem] = []
-    @Published private(set) var notice = "把文件拖到这里暂存"
+    @Published private(set) var notice = ""
 
-    private static let storageKey = "fileShelfItems.v2"
+    static let legacyStorageKey = "fileShelfItems.v2"
 
     private let defaults: UserDefaults
     private let fileManager: FileManager
@@ -27,10 +27,14 @@ final class FileShelfStore: ObservableObject {
         self.defaults = defaults
         self.fileManager = fileManager
         self.managedDirectory = managedDirectory
-            ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            ?? fileManager.temporaryDirectory
                 .appendingPathComponent("CodexIsland", isDirectory: true)
                 .appendingPathComponent("FileShelf", isDirectory: true)
-        restore()
+
+        if managedDirectory == nil {
+            clearPreviousTemporaryStorage()
+            removeLegacyPersistence()
+        }
     }
 
     @discardableResult
@@ -48,7 +52,7 @@ final class FileShelfStore: ObservableObject {
         let panel = NSOpenPanel()
         panel.title = "添加到文件暂存"
         panel.prompt = "暂存"
-        panel.message = "稍后可从灵动岛直接拖到 Codex 输入框"
+        panel.message = "文件只保留到本次退出前，可从灵动岛直接拖到 Codex"
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
@@ -63,8 +67,7 @@ final class FileShelfStore: ObservableObject {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
         let removed = items.remove(at: index)
         deleteManagedCopyIfNeeded(removed)
-        notice = items.isEmpty ? "把文件拖到这里暂存" : "已移除 \(removed.displayName)"
-        persist()
+        notice = items.isEmpty ? "" : "已移除 \(removed.displayName)"
     }
 
     func clear() {
@@ -72,7 +75,19 @@ final class FileShelfStore: ObservableObject {
         items.removeAll()
         removedItems.forEach(deleteManagedCopyIfNeeded)
         notice = "暂存区已清空"
-        persist()
+    }
+
+    func completeOutboundDrag(of item: FileShelfItem, accepted: Bool) {
+        guard accepted else { return }
+        remove(item)
+    }
+
+    func shutdown() {
+        let removedItems = items
+        items.removeAll()
+        removedItems.forEach(deleteManagedCopyIfNeeded)
+        try? fileManager.removeItem(at: managedDirectory)
+        notice = ""
     }
 
     func importProviders(_ providers: [NSItemProvider]) -> Bool {
@@ -118,28 +133,20 @@ final class FileShelfStore: ObservableObject {
         notice = additions.count == 1
             ? "已暂存 \(additions[0].displayName)"
             : "已暂存 \(additions.count) 个文件"
-        persist()
         return additions.count
     }
 
-    private func restore() {
-        guard let data = defaults.data(forKey: Self.storageKey),
-              let storedItems = try? JSONDecoder().decode([FileShelfItem].self, from: data) else {
-            return
-        }
-
-        items = storedItems.filter { isRegularFile(at: $0.url) }
-        if items.count != storedItems.count {
-            persist()
-        }
-        if !items.isEmpty {
-            notice = "已恢复 \(items.count) 个暂存文件"
-        }
+    private func clearPreviousTemporaryStorage() {
+        try? fileManager.removeItem(at: managedDirectory)
     }
 
-    private func persist() {
-        guard let data = try? JSONEncoder().encode(items) else { return }
-        defaults.set(data, forKey: Self.storageKey)
+    private func removeLegacyPersistence() {
+        let legacyDirectory = fileManager
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("CodexIsland", isDirectory: true)
+            .appendingPathComponent("FileShelf", isDirectory: true)
+        try? fileManager.removeItem(at: legacyDirectory)
+        defaults.removeObject(forKey: Self.legacyStorageKey)
     }
 
     private func canonicalURL(for url: URL) -> URL {

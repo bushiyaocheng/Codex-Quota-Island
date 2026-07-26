@@ -97,16 +97,16 @@ final class PanelViewStateTests: XCTestCase {
         let state = PanelViewState()
 
         state.updateContent(windowCount: 2, showsResetCredits: true)
-        XCTAssertEqual(state.expandedHeight, 360)
+        XCTAssertEqual(state.expandedHeight, 244)
 
         state.updateContent(windowCount: 1, showsResetCredits: true)
-        XCTAssertEqual(state.expandedHeight, 311)
+        XCTAssertEqual(state.expandedHeight, 195)
 
         state.updateContent(windowCount: 1, showsResetCredits: false)
-        XCTAssertEqual(state.expandedHeight, 277)
+        XCTAssertEqual(state.expandedHeight, 161)
 
         state.updateContent(windowCount: 3, showsResetCredits: true)
-        XCTAssertEqual(state.expandedHeight, 409)
+        XCTAssertEqual(state.expandedHeight, 293)
     }
 
     func testExpansionPreferenceUsesOnePersistedMode() throws {
@@ -161,6 +161,7 @@ final class PanelViewStateTests: XCTestCase {
         state.setDropTargeted(true)
         XCTAssertTrue(state.isDropTargeted)
         XCTAssertTrue(state.isExpanded)
+        XCTAssertEqual(state.expandedHeight, 132)
 
         state.beginFileDrag()
         state.setDropTargeted(false)
@@ -168,6 +169,23 @@ final class PanelViewStateTests: XCTestCase {
 
         state.endFileDrag()
         XCTAssertFalse(state.isExpanded)
+        XCTAssertEqual(state.expandedHeight, 244)
+    }
+
+    @MainActor
+    func testFileShelfPinsCompactFilePanelUntilLastItemLeaves() {
+        let state = PanelViewState()
+        state.updateContent(windowCount: 1, showsResetCredits: false)
+
+        state.setShelfItemCount(2)
+        XCTAssertTrue(state.hasShelfItems)
+        XCTAssertTrue(state.isExpanded)
+        XCTAssertEqual(state.expandedHeight, 142)
+
+        state.setShelfItemCount(0)
+        XCTAssertFalse(state.hasShelfItems)
+        XCTAssertFalse(state.isExpanded)
+        XCTAssertEqual(state.expandedHeight, 161)
     }
 
     @MainActor

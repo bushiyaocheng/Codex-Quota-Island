@@ -5,12 +5,16 @@ enum FileDragPayload {
     static func pasteboardWriter(for fileURL: URL) -> NSURL {
         fileURL as NSURL
     }
+
+    static func wasAccepted(_ operation: NSDragOperation) -> Bool {
+        !operation.isEmpty
+    }
 }
 
 struct FileDragSource: NSViewRepresentable {
     let fileURL: URL
     let onDragBegan: () -> Void
-    let onDragEnded: () -> Void
+    let onDragEnded: (Bool) -> Void
 
     func makeNSView(context: Context) -> FileDragSourceView {
         FileDragSourceView(
@@ -31,14 +35,14 @@ struct FileDragSource: NSViewRepresentable {
 final class FileDragSourceView: NSView, NSDraggingSource {
     var fileURL: URL
     var onDragBegan: () -> Void
-    var onDragEnded: () -> Void
+    var onDragEnded: (Bool) -> Void
 
     private var hasStartedDrag = false
 
     init(
         fileURL: URL,
         onDragBegan: @escaping () -> Void,
-        onDragEnded: @escaping () -> Void
+        onDragEnded: @escaping (Bool) -> Void
     ) {
         self.fileURL = fileURL
         self.onDragBegan = onDragBegan
@@ -97,6 +101,6 @@ final class FileDragSourceView: NSView, NSDraggingSource {
         operation: NSDragOperation
     ) {
         hasStartedDrag = false
-        onDragEnded()
+        onDragEnded(FileDragPayload.wasAccepted(operation))
     }
 }

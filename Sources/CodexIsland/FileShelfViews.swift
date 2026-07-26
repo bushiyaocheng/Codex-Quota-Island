@@ -2,16 +2,12 @@ import AppKit
 import QuickLookThumbnailing
 import SwiftUI
 
-struct FileShelfSection: View {
+struct FileShelfPanel: View {
     @ObservedObject var shelf: FileShelfStore
     @ObservedObject var panel: PanelViewState
 
     var body: some View {
         VStack(spacing: 0) {
-            Divider()
-                .overlay(Color.white.opacity(0.08))
-                .padding(.horizontal, 14)
-
             HStack(spacing: 6) {
                 Image(systemName: "tray.full")
                     .font(.system(size: 10.5, weight: .medium))
@@ -20,31 +16,25 @@ struct FileShelfSection: View {
                     .font(.system(size: 11.5, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.82))
 
-                if !shelf.items.isEmpty {
-                    Text("\(shelf.items.count)")
-                        .font(.system(size: 9, weight: .semibold, design: .rounded))
-                        .foregroundStyle(IslandPalette.cyan)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(IslandPalette.blue.opacity(0.14))
-                        .clipShape(Capsule())
-                }
+                Text("\(shelf.items.count)")
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .foregroundStyle(IslandPalette.cyan)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(IslandPalette.blue.opacity(0.14))
+                    .clipShape(Capsule())
 
                 Spacer()
 
-                if !shelf.items.isEmpty {
-                    Button("清空") {
-                        shelf.clear()
-                    }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 10.5, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.42))
+                Button("清空") {
+                    shelf.clear()
                 }
+                .buttonStyle(.plain)
+                .font(.system(size: 10.5, design: .rounded))
+                .foregroundStyle(.white.opacity(0.42))
 
                 Button {
-                    if shelf.chooseFiles() > 0 {
-                        panel.revealShelf()
-                    }
+                    shelf.chooseFiles()
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 9.5, weight: .semibold))
@@ -57,62 +47,13 @@ struct FileShelfSection: View {
                 .help("选择文件")
             }
             .padding(.horizontal, 14)
-            .frame(height: 30)
+            .frame(height: 34)
 
-            Group {
-                if shelf.items.isEmpty {
-                    emptyShelf
-                } else {
-                    populatedShelf
-                }
-            }
-            .frame(height: 62)
-
-            Text(shelf.items.isEmpty ? shelf.notice : "把缩略图拖到 Codex 输入框即可发送")
-                .font(.system(size: 9.5, weight: .regular, design: .rounded))
-                .foregroundStyle(
-                    panel.isDropTargeted
-                        ? IslandPalette.cyan.opacity(0.92)
-                        : .white.opacity(0.34)
-                )
-                .lineLimit(1)
-                .frame(height: 18)
+            populatedShelf
+                .frame(height: 66)
         }
-    }
-
-    private var emptyShelf: some View {
-        HStack(spacing: 8) {
-            Image(systemName: panel.isDropTargeted ? "arrow.down.doc.fill" : "photo.on.rectangle.angled")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(
-                    panel.isDropTargeted
-                        ? IslandPalette.cyan
-                        : IslandPalette.blue.opacity(0.58)
-                )
-            Text(panel.isDropTargeted ? "松手即可暂存" : "拖入图片或文件")
-                .font(.system(size: 11.5, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(panel.isDropTargeted ? 0.9 : 0.54))
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(
-                    panel.isDropTargeted
-                        ? IslandPalette.blue.opacity(0.16)
-                        : Color.white.opacity(0.025)
-                )
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(
-                    panel.isDropTargeted
-                        ? IslandPalette.cyan.opacity(0.7)
-                        : Color.white.opacity(0.10),
-                    style: StrokeStyle(lineWidth: 1, dash: [4, 4])
-                )
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 3)
+        .padding(.top, 2)
+        .padding(.bottom, 6)
     }
 
     private var populatedShelf: some View {
@@ -139,6 +80,31 @@ struct FileShelfSection: View {
     }
 }
 
+struct FileDropPrompt: View {
+    var body: some View {
+        VStack(spacing: 9) {
+            Image(systemName: "arrow.down.doc.fill")
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(IslandPalette.cyan)
+
+            Text("松手即可暂存")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.9))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(IslandPalette.blue.opacity(0.09))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(
+                    IslandPalette.cyan.opacity(0.65),
+                    style: StrokeStyle(lineWidth: 1, dash: [5, 4])
+                )
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+        }
+    }
+}
+
 private struct FileShelfCard: View {
     let item: FileShelfItem
     @ObservedObject var shelf: FileShelfStore
@@ -152,7 +118,10 @@ private struct FileShelfCard: View {
                 FileDragSource(
                     fileURL: item.url,
                     onDragBegan: panel.beginFileDrag,
-                    onDragEnded: panel.endFileDrag
+                    onDragEnded: { accepted in
+                        shelf.completeOutboundDrag(of: item, accepted: accepted)
+                        panel.endFileDrag()
+                    }
                 )
                 .contentShape(Rectangle())
                 .help("拖到 Codex 输入框")
@@ -183,7 +152,7 @@ private struct FileShelfCard: View {
                 .frame(width: 54)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(item.displayName)，可拖到 Codex")
+        .accessibilityLabel("\(item.displayName)，成功拖出后会从暂存移除")
     }
 }
 

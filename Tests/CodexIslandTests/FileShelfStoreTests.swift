@@ -5,7 +5,7 @@ import XCTest
 
 final class FileShelfStoreTests: XCTestCase {
     @MainActor
-    func testAddsDeduplicatesAndRestoresFiles() throws {
+    func testAddsAndDeduplicatesFilesOnlyWithinSession() throws {
         let context = try makeContext()
         defer { context.cleanup() }
 
@@ -21,11 +21,11 @@ final class FileShelfStoreTests: XCTestCase {
         XCTAssertEqual(store.addFiles([firstFile, firstFile, secondFile]), 2)
         XCTAssertEqual(store.items.map(\.displayName), ["first.png", "notes.md"])
 
-        let restored = FileShelfStore(
+        let nextSession = FileShelfStore(
             defaults: context.defaults,
             managedDirectory: context.managedDirectory
         )
-        XCTAssertEqual(restored.items.map(\.displayName), ["first.png", "notes.md"])
+        XCTAssertTrue(nextSession.items.isEmpty)
     }
 
     @MainActor
@@ -89,6 +89,57 @@ final class FileShelfStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testSuccessfulOutboundDragRemovesItemButCancelledDragKeepsIt() throws {
+        let context = try makeContext()
+        defer { context.cleanup() }
+
+        let original = context.root.appendingPathComponent("send.txt")
+        try Data("send".utf8).write(to: original)
+        let store = FileShelfStore(
+            defaults: context.defaults,
+            managedDirectory: context.managedDirectory
+        )
+        XCTAssertEqual(store.addFiles([original]), 1)
+        let item = try XCTUnwrap(store.items.first)
+
+        store.completeOutboundDrag(of: item, accepted: false)
+        XCTAssertEqual(store.items.count, 1)
+
+        store.completeOutboundDrag(of: item, accepted: true)
+        XCTAssertTrue(store.items.isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: original.path))
+    }
+
+    @MainActor
+    func testShutdownClearsRecordsAndManagedTemporaryCopies() throws {
+        let context = try makeContext()
+        defer { context.cleanup() }
+
+        let original = context.root.appendingPathComponent("original.txt")
+        try Data("original".utf8).write(to: original)
+        try FileManager.default.createDirectory(
+            at: context.managedDirectory,
+            withIntermediateDirectories: true
+        )
+        let managedFile = context.managedDirectory.appendingPathComponent("drop.png")
+        try Data("managed".utf8).write(to: managedFile)
+
+        let store = FileShelfStore(
+            defaults: context.defaults,
+            managedDirectory: context.managedDirectory
+        )
+        XCTAssertEqual(store.addFiles([original]), 1)
+        XCTAssertEqual(store.addManagedFile(managedFile), 1)
+
+        store.shutdown()
+
+        XCTAssertTrue(store.items.isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: original.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: managedFile.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: context.managedDirectory.path))
+    }
+
+    @MainActor
     func testImportsFileURLFromNativeItemProvider() async throws {
         let context = try makeContext()
         defer { context.cleanup() }
@@ -125,6 +176,8 @@ final class FileShelfStoreTests: XCTestCase {
         ) as? [NSURL]
 
         XCTAssertEqual(urls?.first as URL?, file)
+        XCTAssertFalse(FileDragPayload.wasAccepted([]))
+        XCTAssertTrue(FileDragPayload.wasAccepted(.copy))
     }
 
     private func makeContext() throws -> TestContext {

@@ -96,8 +96,7 @@ final class IslandPanel: NSPanel {
     }
 
     @objc private func addFilesToShelf() {
-        guard let fileShelf, fileShelf.chooseFiles() > 0 else { return }
-        panelState?.revealShelf()
+        fileShelf?.chooseFiles()
     }
 
     @objc private func clearFileShelf() {

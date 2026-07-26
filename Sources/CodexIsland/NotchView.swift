@@ -168,7 +168,18 @@ struct NotchRootView: View {
         )
     }
 
+    @ViewBuilder
     private var detailPanel: some View {
+        if !fileShelf.items.isEmpty {
+            FileShelfPanel(shelf: fileShelf, panel: panel)
+        } else if panel.isDropTargeted {
+            FileDropPrompt()
+        } else {
+            quotaDetailPanel
+        }
+    }
+
+    private var quotaDetailPanel: some View {
         VStack(spacing: 0) {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 3) {
@@ -247,8 +258,6 @@ struct NotchRootView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
             }
-
-            FileShelfSection(shelf: fileShelf, panel: panel)
 
             footer
                 .padding(.horizontal, 14)

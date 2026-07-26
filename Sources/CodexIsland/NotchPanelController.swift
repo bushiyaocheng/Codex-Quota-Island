@@ -54,6 +54,15 @@ final class NotchPanelController {
             }
             .store(in: &cancellables)
 
+        fileShelf.$items
+            .map(\.count)
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] count in
+                self?.viewState.setShelfItemCount(count)
+            }
+            .store(in: &cancellables)
+
         viewState.$isExpanded
             .combineLatest(viewState.$expandedHeight)
             .removeDuplicates { lhs, rhs in
@@ -67,6 +76,10 @@ final class NotchPanelController {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.layoutPanel() }
             .store(in: &cancellables)
+    }
+
+    func shutdown() {
+        fileShelf.shutdown()
     }
 
     private func updateVisibility(for state: UsageController.State) {

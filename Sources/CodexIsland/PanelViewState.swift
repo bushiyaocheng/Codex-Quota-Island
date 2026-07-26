@@ -3,12 +3,15 @@ import SwiftUI
 
 @MainActor
 final class PanelViewState: ObservableObject {
-    private static let twoWindowExpandedHeight: CGFloat = 360
+    private static let twoWindowExpandedHeight: CGFloat = 244
+    private static let fileShelfExpandedHeight: CGFloat = 142
+    private static let fileDropExpandedHeight: CGFloat = 132
     private static let quotaRowIncrement: CGFloat = 49
     private static let resetCreditsHeight: CGFloat = 34
 
     @Published private(set) var isExpanded: Bool
     @Published private(set) var isDropTargeted = false
+    @Published private(set) var hasShelfItems = false
     @Published private(set) var expandedHeight: CGFloat = twoWindowExpandedHeight
     @Published var notchWidth: CGFloat = 180
     @Published var compactHeight: CGFloat = 34
@@ -17,6 +20,7 @@ final class PanelViewState: ObservableObject {
     private var isClickExpanded: Bool
     private var isHovering = false
     private var isDraggingFile = false
+    private var quotaExpandedHeight: CGFloat = twoWindowExpandedHeight
 
     init() {
         startsExpanded = ProcessInfo.processInfo.arguments.contains("--expanded")
@@ -37,45 +41,38 @@ final class PanelViewState: ObservableObject {
     }
 
     func resetInteractionExpansion() {
-        guard !startsExpanded else { return }
         isClickExpanded = false
         isHovering = false
         isDropTargeted = false
         isDraggingFile = false
+        updateExpandedHeight()
         updateExpansion()
     }
 
     func setDropTargeted(_ targeted: Bool) {
-        guard !startsExpanded else { return }
         isDropTargeted = targeted
+        updateExpandedHeight()
         updateExpansion()
     }
 
     func completeFileDrop() {
-        guard !startsExpanded else { return }
         isDropTargeted = false
-        revealShelf()
+        updateExpandedHeight()
+        updateExpansion()
     }
 
-    func revealShelf() {
-        guard !startsExpanded else { return }
-        switch ExpansionPreference.mode {
-        case .click:
-            isClickExpanded = true
-        case .hover:
-            isHovering = true
-        }
+    func setShelfItemCount(_ count: Int) {
+        hasShelfItems = count > 0
+        updateExpandedHeight()
         updateExpansion()
     }
 
     func beginFileDrag() {
-        guard !startsExpanded else { return }
         isDraggingFile = true
         updateExpansion()
     }
 
     func endFileDrag() {
-        guard !startsExpanded else { return }
         isDraggingFile = false
         updateExpansion()
     }
@@ -85,11 +82,17 @@ final class PanelViewState: ObservableObject {
         let windowDelta = CGFloat(visibleWindowCount - 2) * Self.quotaRowIncrement
         let creditsDelta = showsResetCredits ? 0 : -Self.resetCreditsHeight
         let newHeight = Self.twoWindowExpandedHeight + windowDelta + creditsDelta
-        guard expandedHeight != newHeight else { return }
-        expandedHeight = newHeight
+        guard quotaExpandedHeight != newHeight else { return }
+        quotaExpandedHeight = newHeight
+        updateExpandedHeight()
     }
 
     private func updateExpansion() {
+        guard !startsExpanded else {
+            isExpanded = true
+            return
+        }
+
         let interactionExpansion: Bool
         switch ExpansionPreference.mode {
         case .click:
@@ -97,6 +100,22 @@ final class PanelViewState: ObservableObject {
         case .hover:
             interactionExpansion = isHovering
         }
-        isExpanded = interactionExpansion || isDropTargeted || isDraggingFile
+        isExpanded = interactionExpansion
+            || isDropTargeted
+            || hasShelfItems
+            || isDraggingFile
+    }
+
+    private func updateExpandedHeight() {
+        let newHeight: CGFloat
+        if hasShelfItems {
+            newHeight = Self.fileShelfExpandedHeight
+        } else if isDropTargeted {
+            newHeight = Self.fileDropExpandedHeight
+        } else {
+            newHeight = quotaExpandedHeight
+        }
+        guard expandedHeight != newHeight else { return }
+        expandedHeight = newHeight
     }
 }
