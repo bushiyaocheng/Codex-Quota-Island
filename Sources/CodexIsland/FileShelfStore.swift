@@ -78,8 +78,20 @@ final class FileShelfStore: ObservableObject {
     }
 
     func completeOutboundDrag(of item: FileShelfItem, accepted: Bool) {
+        completeOutboundDrag(of: [item], accepted: accepted)
+    }
+
+    func completeOutboundDrag(of outboundItems: [FileShelfItem], accepted: Bool) {
         guard accepted else { return }
-        remove(item)
+        let outboundIDs = Set(outboundItems.map(\.id))
+        let removedItems = items.filter { outboundIDs.contains($0.id) }
+        guard !removedItems.isEmpty else { return }
+
+        items.removeAll { outboundIDs.contains($0.id) }
+        removedItems.forEach(deleteManagedCopyIfNeeded)
+        notice = items.isEmpty
+            ? ""
+            : "已拖出 \(removedItems.count) 个文件"
     }
 
     func shutdown() {

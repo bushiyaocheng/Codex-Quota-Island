@@ -26,6 +26,10 @@ struct FileShelfPanel: View {
 
                 Spacer()
 
+                if shelf.items.count > 1 {
+                    batchDragHandle
+                }
+
                 Button("清空") {
                     shelf.clear()
                 }
@@ -54,6 +58,38 @@ struct FileShelfPanel: View {
         }
         .padding(.top, 2)
         .padding(.bottom, 6)
+    }
+
+    private var batchDragHandle: some View {
+        let outboundItems = shelf.items
+
+        return ZStack {
+            HStack(spacing: 3) {
+                Image(systemName: "square.stack.3d.up")
+                    .font(.system(size: 8.5, weight: .semibold))
+                Text("全部")
+                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+            }
+            .foregroundStyle(IslandPalette.cyan.opacity(0.9))
+            .padding(.horizontal, 7)
+            .frame(height: 21)
+            .background(IslandPalette.blue.opacity(0.13))
+            .clipShape(Capsule())
+
+            FileDragSource(
+                fileURLs: outboundItems.map(\.url),
+                onDragBegan: panel.beginFileDrag,
+                onDragEnded: { accepted in
+                    shelf.completeOutboundDrag(of: outboundItems, accepted: accepted)
+                    panel.endFileDrag()
+                }
+            )
+            .contentShape(Rectangle())
+        }
+        .fixedSize()
+        .help("一次拖出全部 \(outboundItems.count) 个文件")
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("拖出全部 \(outboundItems.count) 个文件")
     }
 
     private var populatedShelf: some View {

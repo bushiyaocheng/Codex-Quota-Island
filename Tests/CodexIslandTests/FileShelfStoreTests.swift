@@ -111,6 +111,31 @@ final class FileShelfStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testSuccessfulBatchDragRemovesAllDraggedItemsButCancelledDragKeepsThem() throws {
+        let context = try makeContext()
+        defer { context.cleanup() }
+
+        let first = context.root.appendingPathComponent("first.png")
+        let second = context.root.appendingPathComponent("second.md")
+        try Data("first".utf8).write(to: first)
+        try Data("second".utf8).write(to: second)
+        let store = FileShelfStore(
+            defaults: context.defaults,
+            managedDirectory: context.managedDirectory
+        )
+        XCTAssertEqual(store.addFiles([first, second]), 2)
+        let outboundItems = store.items
+
+        store.completeOutboundDrag(of: outboundItems, accepted: false)
+        XCTAssertEqual(store.items.count, 2)
+
+        store.completeOutboundDrag(of: outboundItems, accepted: true)
+        XCTAssertTrue(store.items.isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: first.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: second.path))
+    }
+
+    @MainActor
     func testShutdownClearsRecordsAndManagedTemporaryCopies() throws {
         let context = try makeContext()
         defer { context.cleanup() }
@@ -161,21 +186,24 @@ final class FileShelfStoreTests: XCTestCase {
     }
 
     func testOutboundPayloadPublishesNativeFileURL() throws {
-        let file = URL(fileURLWithPath: "/tmp/codex-island-drag-test.png")
+        let files = [
+            URL(fileURLWithPath: "/tmp/codex-island-drag-test.png"),
+            URL(fileURLWithPath: "/tmp/codex-island-drag-test.md")
+        ]
         let pasteboard = NSPasteboard(
             name: NSPasteboard.Name("CodexIslandTests.\(UUID().uuidString)")
         )
         pasteboard.clearContents()
 
         XCTAssertTrue(
-            pasteboard.writeObjects([FileDragPayload.pasteboardWriter(for: file)])
+            pasteboard.writeObjects(files.map(FileDragPayload.pasteboardWriter))
         )
         let urls = pasteboard.readObjects(
             forClasses: [NSURL.self],
             options: [.urlReadingFileURLsOnly: true]
         ) as? [NSURL]
 
-        XCTAssertEqual(urls?.first as URL?, file)
+        XCTAssertEqual(urls?.map { $0 as URL }, files)
         XCTAssertFalse(FileDragPayload.wasAccepted([]))
         XCTAssertTrue(FileDragPayload.wasAccepted(.copy))
     }

@@ -12,20 +12,42 @@ enum FileDragPayload {
 }
 
 struct FileDragSource: NSViewRepresentable {
-    let fileURL: URL
+    let fileURLs: [URL]
     let onDragBegan: () -> Void
     let onDragEnded: (Bool) -> Void
 
+    init(
+        fileURL: URL,
+        onDragBegan: @escaping () -> Void,
+        onDragEnded: @escaping (Bool) -> Void
+    ) {
+        self.init(
+            fileURLs: [fileURL],
+            onDragBegan: onDragBegan,
+            onDragEnded: onDragEnded
+        )
+    }
+
+    init(
+        fileURLs: [URL],
+        onDragBegan: @escaping () -> Void,
+        onDragEnded: @escaping (Bool) -> Void
+    ) {
+        self.fileURLs = fileURLs
+        self.onDragBegan = onDragBegan
+        self.onDragEnded = onDragEnded
+    }
+
     func makeNSView(context: Context) -> FileDragSourceView {
         FileDragSourceView(
-            fileURL: fileURL,
+            fileURLs: fileURLs,
             onDragBegan: onDragBegan,
             onDragEnded: onDragEnded
         )
     }
 
     func updateNSView(_ nsView: FileDragSourceView, context: Context) {
-        nsView.fileURL = fileURL
+        nsView.fileURLs = fileURLs
         nsView.onDragBegan = onDragBegan
         nsView.onDragEnded = onDragEnded
     }
@@ -33,18 +55,18 @@ struct FileDragSource: NSViewRepresentable {
 
 @MainActor
 final class FileDragSourceView: NSView, NSDraggingSource {
-    var fileURL: URL
+    var fileURLs: [URL]
     var onDragBegan: () -> Void
     var onDragEnded: (Bool) -> Void
 
     private var hasStartedDrag = false
 
     init(
-        fileURL: URL,
+        fileURLs: [URL],
         onDragBegan: @escaping () -> Void,
         onDragEnded: @escaping (Bool) -> Void
     ) {
-        self.fileURL = fileURL
+        self.fileURLs = fileURLs
         self.onDragBegan = onDragBegan
         self.onDragEnded = onDragEnded
         super.init(frame: .zero)
@@ -65,23 +87,30 @@ final class FileDragSourceView: NSView, NSDraggingSource {
 
     override func mouseDragged(with event: NSEvent) {
         guard !hasStartedDrag,
-              FileManager.default.fileExists(atPath: fileURL.path) else { return }
+              !fileURLs.isEmpty,
+              fileURLs.allSatisfy({
+                  FileManager.default.fileExists(atPath: $0.path)
+              }) else { return }
         hasStartedDrag = true
         onDragBegan()
 
-        let draggingItem = NSDraggingItem(
-            pasteboardWriter: FileDragPayload.pasteboardWriter(for: fileURL)
-        )
-        let icon = NSWorkspace.shared.icon(forFile: fileURL.path)
-        icon.size = NSSize(width: 48, height: 48)
-        let dragFrame = NSRect(
-            x: bounds.midX - 24,
-            y: bounds.midY - 24,
-            width: 48,
-            height: 48
-        )
-        draggingItem.setDraggingFrame(dragFrame, contents: icon)
-        beginDraggingSession(with: [draggingItem], event: event, source: self)
+        let draggingItems = fileURLs.enumerated().map { index, fileURL in
+            let draggingItem = NSDraggingItem(
+                pasteboardWriter: FileDragPayload.pasteboardWriter(for: fileURL)
+            )
+            let icon = NSWorkspace.shared.icon(forFile: fileURL.path)
+            icon.size = NSSize(width: 48, height: 48)
+            let stackOffset = CGFloat(min(index, 3)) * 3
+            let dragFrame = NSRect(
+                x: bounds.midX - 24 + stackOffset,
+                y: bounds.midY - 24 - stackOffset,
+                width: 48,
+                height: 48
+            )
+            draggingItem.setDraggingFrame(dragFrame, contents: icon)
+            return draggingItem
+        }
+        beginDraggingSession(with: draggingItems, event: event, source: self)
     }
 
     func draggingSession(
