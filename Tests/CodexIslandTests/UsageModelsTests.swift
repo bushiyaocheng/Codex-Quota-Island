@@ -97,16 +97,16 @@ final class PanelViewStateTests: XCTestCase {
         let state = PanelViewState()
 
         state.updateContent(windowCount: 2, showsResetCredits: true)
-        XCTAssertEqual(state.expandedHeight, 244)
+        XCTAssertEqual(state.expandedHeight, 360)
 
         state.updateContent(windowCount: 1, showsResetCredits: true)
-        XCTAssertEqual(state.expandedHeight, 195)
+        XCTAssertEqual(state.expandedHeight, 311)
 
         state.updateContent(windowCount: 1, showsResetCredits: false)
-        XCTAssertEqual(state.expandedHeight, 161)
+        XCTAssertEqual(state.expandedHeight, 277)
 
         state.updateContent(windowCount: 3, showsResetCredits: true)
-        XCTAssertEqual(state.expandedHeight, 293)
+        XCTAssertEqual(state.expandedHeight, 409)
     }
 
     func testExpansionPreferenceUsesOnePersistedMode() throws {
@@ -129,6 +129,16 @@ final class PanelViewStateTests: XCTestCase {
 
     @MainActor
     func testInteractionExpansionCanBeResetWhenModeChanges() {
+        let defaults = UserDefaults.standard
+        let originalMode = defaults.object(forKey: ExpansionPreference.storageKey)
+        defer {
+            if let originalMode {
+                defaults.set(originalMode, forKey: ExpansionPreference.storageKey)
+            } else {
+                defaults.removeObject(forKey: ExpansionPreference.storageKey)
+            }
+        }
+        defaults.set(ExpansionMode.click.rawValue, forKey: ExpansionPreference.storageKey)
         let state = PanelViewState()
 
         state.toggleClickExpansion()
@@ -137,9 +147,26 @@ final class PanelViewStateTests: XCTestCase {
         state.resetInteractionExpansion()
         XCTAssertFalse(state.isExpanded)
 
+        defaults.set(ExpansionMode.hover.rawValue, forKey: ExpansionPreference.storageKey)
         state.setHovering(true)
         XCTAssertTrue(state.isExpanded)
         state.setHovering(false)
+        XCTAssertFalse(state.isExpanded)
+    }
+
+    @MainActor
+    func testFileDropAndOutboundDragKeepPanelExpanded() {
+        let state = PanelViewState()
+
+        state.setDropTargeted(true)
+        XCTAssertTrue(state.isDropTargeted)
+        XCTAssertTrue(state.isExpanded)
+
+        state.beginFileDrag()
+        state.setDropTargeted(false)
+        XCTAssertTrue(state.isExpanded)
+
+        state.endFileDrag()
         XCTAssertFalse(state.isExpanded)
     }
 
@@ -200,6 +227,8 @@ final class PanelViewStateTests: XCTestCase {
             "鼠标悬停展开",
             "",
             "立即刷新",
+            "添加文件到暂存…",
+            "清空文件暂存",
             "登录时启动",
             "",
             "退出 Codex Island"

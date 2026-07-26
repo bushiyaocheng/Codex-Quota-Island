@@ -6,6 +6,7 @@ import CoreGraphics
 final class NotchPanelController {
     private let usage: UsageController
     private let launchAtLogin = LaunchAtLoginController()
+    private let fileShelf = FileShelfStore()
     private let viewState = PanelViewState()
     private let panel: IslandPanel
     private var cancellables = Set<AnyCancellable>()
@@ -30,7 +31,8 @@ final class NotchPanelController {
         panel.panelState = viewState
         panel.usage = usage
         panel.launchAtLogin = launchAtLogin
-        let rootView = NotchRootView(usage: usage, panel: viewState)
+        panel.fileShelf = fileShelf
+        let rootView = NotchRootView(usage: usage, panel: viewState, fileShelf: fileShelf)
         panel.contentView = IslandHostingView(rootView: rootView, panelState: viewState)
 
         usage.$snapshot
