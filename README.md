@@ -43,7 +43,7 @@ Codex Island 是一个原生 macOS 小工具。它在刘海两侧显示 Codex �
 
 ### 文件暂存
 
-<img src="docs/images/file-shelf.jpeg" width="320" alt="Codex Island 暂存两个文件并显示全部拖拽按钮">
+<img src="docs/images/file-shelf.png" width="320" alt="Codex Island 暂存两个文件并显示全部拖拽按钮">
 
 文件拖入灵动岛后，额度详情会让位给临时文件托盘：
 
