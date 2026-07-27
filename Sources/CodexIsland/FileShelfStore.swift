@@ -18,14 +18,18 @@ final class FileShelfStore: ObservableObject {
     private let defaults: UserDefaults
     private let fileManager: FileManager
     private let managedDirectory: URL
+    private let outboundManagedCopyRetention: Duration
+    private var managedCopyCleanupTasks: [URL: Task<Void, Never>] = [:]
 
     init(
         defaults: UserDefaults = .standard,
         fileManager: FileManager = .default,
-        managedDirectory: URL? = nil
+        managedDirectory: URL? = nil,
+        outboundManagedCopyRetention: Duration = .seconds(300)
     ) {
         self.defaults = defaults
         self.fileManager = fileManager
+        self.outboundManagedCopyRetention = outboundManagedCopyRetention
         self.managedDirectory = managedDirectory
             ?? fileManager.temporaryDirectory
                 .appendingPathComponent("CodexIsland", isDirectory: true)
@@ -71,6 +75,7 @@ final class FileShelfStore: ObservableObject {
     }
 
     func clear() {
+        deleteScheduledManagedCopies()
         let removedItems = items
         items.removeAll()
         removedItems.forEach(deleteManagedCopyIfNeeded)
@@ -88,13 +93,14 @@ final class FileShelfStore: ObservableObject {
         guard !removedItems.isEmpty else { return }
 
         items.removeAll { outboundIDs.contains($0.id) }
-        removedItems.forEach(deleteManagedCopyIfNeeded)
+        removedItems.forEach(scheduleManagedCopyCleanupIfNeeded)
         notice = items.isEmpty
             ? ""
             : "已拖出 \(removedItems.count) 个文件"
     }
 
     func shutdown() {
+        deleteScheduledManagedCopies()
         let removedItems = items
         items.removeAll()
         removedItems.forEach(deleteManagedCopyIfNeeded)
@@ -132,6 +138,7 @@ final class FileShelfStore: ObservableObject {
             guard isRegularFile(at: canonicalURL), !seenPaths.contains(canonicalURL.path) else {
                 continue
             }
+            managedCopyCleanupTasks.removeValue(forKey: canonicalURL)?.cancel()
             seenPaths.insert(canonicalURL.path)
             additions.append(FileShelfItem(url: canonicalURL, isManagedCopy: isManagedCopy))
         }
@@ -176,6 +183,28 @@ final class FileShelfStore: ObservableObject {
         guard item.isManagedCopy,
               item.url.path.hasPrefix(managedDirectory.path + "/") else { return }
         try? fileManager.removeItem(at: item.url)
+    }
+
+    private func scheduleManagedCopyCleanupIfNeeded(_ item: FileShelfItem) {
+        guard item.isManagedCopy,
+              item.url.path.hasPrefix(managedDirectory.path + "/") else { return }
+
+        let url = item.url
+        let retention = outboundManagedCopyRetention
+        managedCopyCleanupTasks[url]?.cancel()
+        managedCopyCleanupTasks[url] = Task { [weak self] in
+            try? await Task.sleep(for: retention)
+            guard !Task.isCancelled else { return }
+            try? self?.fileManager.removeItem(at: url)
+            self?.managedCopyCleanupTasks[url] = nil
+        }
+    }
+
+    private func deleteScheduledManagedCopies() {
+        let scheduledURLs = Array(managedCopyCleanupTasks.keys)
+        managedCopyCleanupTasks.values.forEach { $0.cancel() }
+        managedCopyCleanupTasks.removeAll()
+        scheduledURLs.forEach { try? fileManager.removeItem(at: $0) }
     }
 
     private func importFileURL(from provider: NSItemProvider) {

@@ -89,6 +89,36 @@ final class FileShelfStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testSuccessfulDragRetainsManagedCopyUntilReceiverCanReadIt() throws {
+        let context = try makeContext()
+        defer { context.cleanup() }
+
+        try FileManager.default.createDirectory(
+            at: context.managedDirectory,
+            withIntermediateDirectories: true
+        )
+        let managedFile = context.managedDirectory.appendingPathComponent("drop.png")
+        try Data("managed".utf8).write(to: managedFile)
+        let store = FileShelfStore(
+            defaults: context.defaults,
+            managedDirectory: context.managedDirectory,
+            outboundManagedCopyRetention: .seconds(60)
+        )
+        XCTAssertEqual(store.addManagedFile(managedFile), 1)
+
+        store.completeOutboundDrag(
+            of: try XCTUnwrap(store.items.first),
+            accepted: true
+        )
+
+        XCTAssertTrue(store.items.isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: managedFile.path))
+
+        store.shutdown()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: managedFile.path))
+    }
+
+    @MainActor
     func testSuccessfulOutboundDragRemovesItemButCancelledDragKeepsIt() throws {
         let context = try makeContext()
         defer { context.cleanup() }
