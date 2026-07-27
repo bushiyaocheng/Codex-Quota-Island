@@ -5,6 +5,7 @@ final class IslandPanel: NSPanel {
     weak var panelState: PanelViewState?
     weak var usage: UsageController?
     weak var launchAtLogin: LaunchAtLoginController?
+    weak var fileShelf: FileShelfStore?
 
     override func sendEvent(_ event: NSEvent) {
         if event.type == .rightMouseDown, isInsideCompactBar(event) {
@@ -49,6 +50,11 @@ final class IslandPanel: NSPanel {
 
         menu.addItem(.separator())
         menu.addItem(menuItem(title: "立即刷新", action: #selector(refreshUsage)))
+        menu.addItem(menuItem(title: "添加文件到暂存…", action: #selector(addFilesToShelf)))
+
+        let clearShelfItem = menuItem(title: "清空文件暂存", action: #selector(clearFileShelf))
+        clearShelfItem.isEnabled = fileShelf?.items.isEmpty == false
+        menu.addItem(clearShelfItem)
 
         let loginTitle = launchAtLogin?.isEnabled == true ? "关闭登录时启动" : "登录时启动"
         let loginItem = menuItem(title: loginTitle, action: #selector(toggleLaunchAtLogin))
@@ -87,6 +93,14 @@ final class IslandPanel: NSPanel {
 
     @objc private func refreshUsage() {
         usage?.refresh()
+    }
+
+    @objc private func addFilesToShelf() {
+        fileShelf?.chooseFiles()
+    }
+
+    @objc private func clearFileShelf() {
+        fileShelf?.clear()
     }
 
     @objc private func toggleLaunchAtLogin() {

@@ -129,6 +129,16 @@ final class PanelViewStateTests: XCTestCase {
 
     @MainActor
     func testInteractionExpansionCanBeResetWhenModeChanges() {
+        let defaults = UserDefaults.standard
+        let originalMode = defaults.object(forKey: ExpansionPreference.storageKey)
+        defer {
+            if let originalMode {
+                defaults.set(originalMode, forKey: ExpansionPreference.storageKey)
+            } else {
+                defaults.removeObject(forKey: ExpansionPreference.storageKey)
+            }
+        }
+        defaults.set(ExpansionMode.click.rawValue, forKey: ExpansionPreference.storageKey)
         let state = PanelViewState()
 
         state.toggleClickExpansion()
@@ -137,10 +147,45 @@ final class PanelViewStateTests: XCTestCase {
         state.resetInteractionExpansion()
         XCTAssertFalse(state.isExpanded)
 
+        defaults.set(ExpansionMode.hover.rawValue, forKey: ExpansionPreference.storageKey)
         state.setHovering(true)
         XCTAssertTrue(state.isExpanded)
         state.setHovering(false)
         XCTAssertFalse(state.isExpanded)
+    }
+
+    @MainActor
+    func testFileDropAndOutboundDragKeepPanelExpanded() {
+        let state = PanelViewState()
+
+        state.setDropTargeted(true)
+        XCTAssertTrue(state.isDropTargeted)
+        XCTAssertTrue(state.isExpanded)
+        XCTAssertEqual(state.expandedHeight, 132)
+
+        state.beginFileDrag()
+        state.setDropTargeted(false)
+        XCTAssertTrue(state.isExpanded)
+
+        state.endFileDrag()
+        XCTAssertFalse(state.isExpanded)
+        XCTAssertEqual(state.expandedHeight, 244)
+    }
+
+    @MainActor
+    func testFileShelfPinsCompactFilePanelUntilLastItemLeaves() {
+        let state = PanelViewState()
+        state.updateContent(windowCount: 1, showsResetCredits: false)
+
+        state.setShelfItemCount(2)
+        XCTAssertTrue(state.hasShelfItems)
+        XCTAssertTrue(state.isExpanded)
+        XCTAssertEqual(state.expandedHeight, 142)
+
+        state.setShelfItemCount(0)
+        XCTAssertFalse(state.hasShelfItems)
+        XCTAssertFalse(state.isExpanded)
+        XCTAssertEqual(state.expandedHeight, 161)
     }
 
     @MainActor
@@ -200,6 +245,8 @@ final class PanelViewStateTests: XCTestCase {
             "鼠标悬停展开",
             "",
             "立即刷新",
+            "添加文件到暂存…",
+            "清空文件暂存",
             "登录时启动",
             "",
             "退出 Codex Island"

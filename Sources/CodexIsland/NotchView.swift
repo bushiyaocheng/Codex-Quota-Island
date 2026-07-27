@@ -1,8 +1,10 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct NotchRootView: View {
     @ObservedObject var usage: UsageController
     @ObservedObject var panel: PanelViewState
+    @ObservedObject var fileShelf: FileShelfStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let sideWidth: CGFloat = 70
@@ -31,6 +33,16 @@ struct NotchRootView: View {
         }
         .frame(width: islandWidth, height: panel.expandedHeight, alignment: .top)
         .ignoresSafeArea()
+        .onDrop(
+            of: FileShelfStore.acceptedTypeIdentifiers,
+            isTargeted: dropTargetBinding
+        ) { providers in
+            let accepted = fileShelf.importProviders(providers)
+            if accepted {
+                panel.completeFileDrop()
+            }
+            return accepted
+        }
     }
 
     private var islandSurface: some View {
@@ -51,8 +63,10 @@ struct NotchRootView: View {
         .overlay {
             islandShape
                 .stroke(
-                    IslandPalette.blue.opacity(panel.isExpanded ? 0.28 : 0),
-                    lineWidth: 0.8
+                    panel.isDropTargeted
+                        ? IslandPalette.cyan.opacity(0.78)
+                        : IslandPalette.blue.opacity(panel.isExpanded ? 0.28 : 0),
+                    lineWidth: panel.isDropTargeted ? 1.2 : 0.8
                 )
         }
         .overlay(alignment: .top) {
@@ -127,19 +141,45 @@ struct NotchRootView: View {
 
     private var resetMetric: some View {
         HStack(spacing: 5) {
-            Image(systemName: "arrow.clockwise")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(IslandPalette.blue.opacity(0.78))
-            Text(usage.snapshot?.compactWindow?.usage.remainingResetText(at: usage.now) ?? "--")
-                .font(.system(size: 12.5, weight: .regular, design: .rounded))
-                .foregroundStyle(.white.opacity(0.82))
-                .monospacedDigit()
+            if fileShelf.items.isEmpty {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(IslandPalette.blue.opacity(0.78))
+                Text(usage.snapshot?.compactWindow?.usage.remainingResetText(at: usage.now) ?? "--")
+                    .font(.system(size: 12.5, weight: .regular, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.82))
+                    .monospacedDigit()
+            } else {
+                Image(systemName: "paperclip")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(IslandPalette.cyan.opacity(0.86))
+                Text("\(fileShelf.items.count)")
+                    .font(.system(size: 12.5, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .monospacedDigit()
+            }
         }
         .padding(.horizontal, 5)
         .frame(height: panel.compactHeight)
+        .accessibilityLabel(
+            fileShelf.items.isEmpty
+                ? "额度重置倒计时"
+                : "暂存了 \(fileShelf.items.count) 个文件"
+        )
     }
 
+    @ViewBuilder
     private var detailPanel: some View {
+        if !fileShelf.items.isEmpty {
+            FileShelfPanel(shelf: fileShelf, panel: panel)
+        } else if panel.isDropTargeted {
+            FileDropPrompt()
+        } else {
+            quotaDetailPanel
+        }
+    }
+
+    private var quotaDetailPanel: some View {
         VStack(spacing: 0) {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 3) {
@@ -223,6 +263,13 @@ struct NotchRootView: View {
                 .padding(.horizontal, 14)
                 .padding(.bottom, 10)
         }
+    }
+
+    private var dropTargetBinding: Binding<Bool> {
+        Binding(
+            get: { panel.isDropTargeted },
+            set: { panel.setDropTargeted($0) }
+        )
     }
 
     private var quotaWindows: [QuotaWindow] {
