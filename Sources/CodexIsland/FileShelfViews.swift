@@ -84,9 +84,10 @@ struct FileShelfPanel: View {
                     panel.endFileDrag()
                 }
             )
+            .frame(width: 50, height: 24)
             .contentShape(Rectangle())
         }
-        .fixedSize()
+        .frame(width: 50, height: 24)
         .help("一次拖出全部 \(outboundItems.count) 个文件")
         .accessibilityElement(children: .combine)
         .accessibilityLabel("拖出全部 \(outboundItems.count) 个文件")

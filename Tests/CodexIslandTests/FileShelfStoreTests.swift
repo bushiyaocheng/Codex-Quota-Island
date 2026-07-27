@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SwiftUI
 import XCTest
 @testable import CodexIsland
 
@@ -236,6 +237,53 @@ final class FileShelfStoreTests: XCTestCase {
         XCTAssertEqual(urls?.map { $0 as URL }, files)
         XCTAssertFalse(FileDragPayload.wasAccepted([]))
         XCTAssertTrue(FileDragPayload.wasAccepted(.copy))
+    }
+
+    @MainActor
+    func testBatchDragHandleProvidesNativeHitArea() throws {
+        let context = try makeContext()
+        defer { context.cleanup() }
+
+        let firstFile = context.root.appendingPathComponent("first.png")
+        let secondFile = context.root.appendingPathComponent("second.md")
+        try Data("first".utf8).write(to: firstFile)
+        try Data("second".utf8).write(to: secondFile)
+
+        let store = FileShelfStore(
+            defaults: context.defaults,
+            managedDirectory: context.managedDirectory
+        )
+        XCTAssertEqual(store.addFiles([firstFile, secondFile]), 2)
+
+        let hostingView = NSHostingView(
+            rootView: FileShelfPanel(
+                shelf: store,
+                panel: PanelViewState()
+            )
+            .frame(width: 319, height: 108)
+        )
+        hostingView.frame = NSRect(x: 0, y: 0, width: 319, height: 108)
+        hostingView.layoutSubtreeIfNeeded()
+
+        let dragSources = descendants(
+            of: hostingView,
+            matching: FileDragSourceView.self
+        )
+        XCTAssertEqual(dragSources.count, 3)
+        let batchSources = dragSources.filter { $0.frame.height < 30 }
+        XCTAssertEqual(batchSources.count, 1)
+        XCTAssertEqual(batchSources[0].frame.width, 50, accuracy: 0.5)
+        XCTAssertEqual(batchSources[0].frame.height, 24, accuracy: 0.5)
+    }
+
+    private func descendants<T: NSView>(
+        of root: NSView,
+        matching type: T.Type
+    ) -> [T] {
+        root.subviews.flatMap { view in
+            let current = (view as? T).map { [$0] } ?? []
+            return current + descendants(of: view, matching: type)
+        }
     }
 
     private func makeContext() throws -> TestContext {
