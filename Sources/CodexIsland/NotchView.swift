@@ -5,6 +5,7 @@ struct NotchRootView: View {
     @ObservedObject var usage: UsageController
     @ObservedObject var panel: PanelViewState
     @ObservedObject var fileShelf: FileShelfStore
+    @ObservedObject var sleepPrevention: SleepPreventionController
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let sideWidth: CGFloat = 70
@@ -192,17 +193,43 @@ struct NotchRootView: View {
                         .foregroundStyle(.white)
                 }
                 Spacer()
-                Button {
-                    usage.refresh()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .frame(width: 26, height: 26)
-                        .background(Color.white.opacity(0.07))
-                        .clipShape(Circle())
+                HStack(spacing: 6) {
+                    Button {
+                        sleepPrevention.toggle()
+                    } label: {
+                        Image(systemName: "cup.and.heat.waves.fill")
+                            .font(.system(size: 11.5, weight: .medium))
+                            .frame(width: 26, height: 26)
+                            .background(
+                                sleepPrevention.isEnabled
+                                    ? IslandPalette.cyan.opacity(0.2)
+                                    : Color.white.opacity(0.05)
+                            )
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(
+                        sleepPrevention.isEnabled
+                            ? IslandPalette.cyan
+                            : Color.white.opacity(0.34)
+                    )
+                    .help(sleepPreventionHelp)
+                    .accessibilityLabel("防止电脑休眠")
+                    .accessibilityValue(sleepPrevention.isEnabled ? "已开启" : "已关闭")
+
+                    Button {
+                        usage.refresh()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 10.5, weight: .medium))
+                            .frame(width: 26, height: 26)
+                            .background(Color.white.opacity(0.07))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.white.opacity(0.8))
+                    .help("立即刷新额度")
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white.opacity(0.8))
             }
             .padding(.horizontal, 14)
             .padding(.top, 8)
@@ -281,6 +308,15 @@ struct NotchRootView: View {
         case .loading: "正在读取额度"
         case .ready, .stale, .hidden: "暂无额度数据"
         }
+    }
+
+    private var sleepPreventionHelp: String {
+        if let errorMessage = sleepPrevention.errorMessage {
+            return errorMessage
+        }
+        return sleepPrevention.isEnabled
+            ? "电脑将保持唤醒；显示器仍按系统设置关闭"
+            : "允许电脑按系统设置休眠"
     }
 
     @ViewBuilder

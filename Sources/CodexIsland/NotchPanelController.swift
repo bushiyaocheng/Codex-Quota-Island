@@ -7,6 +7,7 @@ final class NotchPanelController {
     private let usage: UsageController
     private let launchAtLogin = LaunchAtLoginController()
     private let fileShelf = FileShelfStore()
+    private let sleepPrevention = SleepPreventionController()
     private let viewState = PanelViewState()
     private let panel: IslandPanel
     private var cancellables = Set<AnyCancellable>()
@@ -32,7 +33,12 @@ final class NotchPanelController {
         panel.usage = usage
         panel.launchAtLogin = launchAtLogin
         panel.fileShelf = fileShelf
-        let rootView = NotchRootView(usage: usage, panel: viewState, fileShelf: fileShelf)
+        let rootView = NotchRootView(
+            usage: usage,
+            panel: viewState,
+            fileShelf: fileShelf,
+            sleepPrevention: sleepPrevention
+        )
         panel.contentView = IslandHostingView(rootView: rootView, panelState: viewState)
 
         usage.$snapshot
@@ -80,6 +86,7 @@ final class NotchPanelController {
 
     func shutdown() {
         fileShelf.shutdown()
+        sleepPrevention.shutdown()
     }
 
     private func updateVisibility(for state: UsageController.State) {

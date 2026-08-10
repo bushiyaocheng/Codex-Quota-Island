@@ -213,12 +213,12 @@ final class FileShelfStore: ObservableObject {
             options: nil
         ) { [weak self] value, error in
             guard error == nil, let url = Self.decodeFileURL(from: value) else {
-                Task { @MainActor in
+                Task { @MainActor [weak self] in
                     self?.notice = "无法读取拖入的文件"
                 }
                 return
             }
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 _ = self?.addFiles([url])
             }
         }
@@ -234,7 +234,7 @@ final class FileShelfStore: ObservableObject {
 
         provider.loadFileRepresentation(forTypeIdentifier: typeIdentifier) { [weak self] sourceURL, error in
             guard error == nil, let sourceURL else {
-                Task { @MainActor in
+                Task { @MainActor [weak self] in
                     self?.notice = "无法读取拖入的图片"
                 }
                 return
@@ -253,11 +253,11 @@ final class FileShelfStore: ObservableObject {
                     .appendingPathComponent("drop-\(UUID().uuidString)")
                     .appendingPathExtension(fileExtension)
                 try callbackFileManager.copyItem(at: sourceURL, to: destinationURL)
-                Task { @MainActor in
+                Task { @MainActor [weak self] in
                     _ = self?.addManagedFile(destinationURL)
                 }
             } catch {
-                Task { @MainActor in
+                Task { @MainActor [weak self] in
                     self?.notice = "暂存图片失败"
                 }
             }
