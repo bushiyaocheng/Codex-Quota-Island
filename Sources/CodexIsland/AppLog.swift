@@ -8,4 +8,5 @@ enum AppLog {
     static let usage = Logger(subsystem: subsystem, category: "Usage")
     static let windowing = Logger(subsystem: subsystem, category: "Windowing")
     static let launchAtLogin = Logger(subsystem: subsystem, category: "LaunchAtLogin")
+    static let power = Logger(subsystem: subsystem, category: "Power")
 }
