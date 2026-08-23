@@ -223,6 +223,35 @@ final class PanelViewStateTests: XCTestCase {
         )
         panel.panelState = state
         panel.contentView = NSView(frame: NSRect(x: 0, y: 0, width: 319, height: 244))
+        let shelf = FileShelfStore(
+            managedDirectory: FileManager.default.temporaryDirectory
+                .appendingPathComponent("compact-sleep-control-\(UUID().uuidString)")
+        )
+        panel.fileShelf = shelf
+        var sleepToggleCount = 0
+        panel.toggleSleepPrevention = {
+            sleepToggleCount += 1
+        }
+
+        let sleepControlEvent = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: NSPoint(
+                x: 319 - CompactBarLayout.sideWidth
+                    + CompactBarLayout.sleepControlHitWidth / 2,
+                y: 228
+            ),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: panel.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 1
+        ))
+
+        panel.sendEvent(sleepControlEvent)
+        XCTAssertEqual(sleepToggleCount, 1)
+        XCTAssertFalse(state.isExpanded)
 
         let event = try XCTUnwrap(NSEvent.mouseEvent(
             with: .leftMouseDown,

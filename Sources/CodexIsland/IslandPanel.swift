@@ -6,10 +6,19 @@ final class IslandPanel: NSPanel {
     weak var usage: UsageController?
     weak var launchAtLogin: LaunchAtLoginController?
     weak var fileShelf: FileShelfStore?
+    var toggleSleepPrevention: (() -> Void)?
 
     override func sendEvent(_ event: NSEvent) {
         if event.type == .rightMouseDown, isInsideCompactBar(event) {
             showCompactMenu(for: event)
+            return
+        }
+
+        if event.type == .leftMouseDown || event.type == .leftMouseUp,
+           isInsideCompactSleepControl(event) {
+            if event.type == .leftMouseDown {
+                toggleSleepPrevention?()
+            }
             return
         }
 
@@ -113,8 +122,31 @@ final class IslandPanel: NSPanel {
     }
 
     private func isInsideCompactBar(_ event: NSEvent) -> Bool {
-        guard let contentView, let panelState else { return false }
-        let point = contentView.convert(event.locationInWindow, from: nil)
+        guard let rect = compactBarRect(),
+              let point = contentPoint(for: event) else { return false }
+        return rect.contains(point)
+    }
+
+    private func isInsideCompactSleepControl(_ event: NSEvent) -> Bool {
+        guard fileShelf?.items.isEmpty == true,
+              let compactBarRect = compactBarRect(),
+              let point = contentPoint(for: event) else { return false }
+        let rect = NSRect(
+            x: compactBarRect.maxX - CompactBarLayout.sideWidth,
+            y: compactBarRect.minY,
+            width: CompactBarLayout.sleepControlHitWidth,
+            height: compactBarRect.height
+        )
+        return rect.contains(point)
+    }
+
+    private func contentPoint(for event: NSEvent) -> NSPoint? {
+        guard let contentView else { return nil }
+        return contentView.convert(event.locationInWindow, from: nil)
+    }
+
+    private func compactBarRect() -> NSRect? {
+        guard let contentView, let panelState else { return nil }
         let height = min(contentView.bounds.height, panelState.compactHeight)
         let originY = contentView.isFlipped
             ? contentView.bounds.minY
@@ -125,6 +157,6 @@ final class IslandPanel: NSPanel {
             width: contentView.bounds.width,
             height: height
         )
-        return rect.contains(point)
+        return rect
     }
 }

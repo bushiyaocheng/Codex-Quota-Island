@@ -8,8 +8,9 @@ struct NotchRootView: View {
     @ObservedObject var sleepPrevention: SleepPreventionController
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private let sideWidth: CGFloat = 70
-    private var islandWidth: CGFloat { panel.notchWidth + sideWidth * 2 }
+    private var islandWidth: CGFloat {
+        panel.notchWidth + CompactBarLayout.sideWidth * 2
+    }
     private var islandHeight: CGFloat {
         panel.isExpanded ? panel.expandedHeight : panel.compactHeight
     }
@@ -102,23 +103,17 @@ struct NotchRootView: View {
     }
 
     private var compactBar: some View {
-        Button {
-            guard ExpansionPreference.mode == .click else { return }
-            panel.toggleClickExpansion()
-        } label: {
-            HStack(spacing: 0) {
-                compactMetric
-                    .frame(width: sideWidth, alignment: .center)
+        HStack(spacing: 0) {
+            compactMetric
+                .frame(width: CompactBarLayout.sideWidth, alignment: .center)
 
-                Color.clear
-                    .frame(width: panel.notchWidth)
+            Color.clear
+                .frame(width: panel.notchWidth)
 
-                resetMetric
-                    .frame(width: sideWidth, alignment: .center)
-            }
-            .contentShape(Rectangle())
+            resetMetric
+                .frame(width: CompactBarLayout.sideWidth, alignment: .center)
         }
-        .buttonStyle(.plain)
+        .contentShape(Rectangle())
     }
 
     private var compactMetric: some View {
@@ -141,32 +136,46 @@ struct NotchRootView: View {
     }
 
     private var resetMetric: some View {
-        HStack(spacing: 5) {
+        Group {
             if fileShelf.items.isEmpty {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 9.5, weight: .medium))
-                    .foregroundStyle(IslandPalette.blue.opacity(0.78))
-                Text(usage.snapshot?.compactWindow?.usage.remainingResetText(at: usage.now) ?? "--")
-                    .font(.system(size: 12.5, weight: .regular, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.82))
-                    .monospacedDigit()
+                HStack(spacing: 5) {
+                    Image(systemName: "cup.and.heat.waves.fill")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(
+                            sleepPrevention.isEnabled
+                                ? IslandPalette.cyan
+                                : Color.white.opacity(0.32)
+                        )
+                        .help(sleepPreventionHelp)
+                        .accessibilityLabel("防止电脑休眠")
+                        .accessibilityValue(sleepPrevention.isEnabled ? "已开启" : "已关闭")
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction {
+                            sleepPrevention.toggle()
+                        }
+                    Text(usage.snapshot?.compactWindow?.usage.remainingResetText(at: usage.now) ?? "--")
+                        .font(.system(size: 12.5, weight: .regular, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.82))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                }
             } else {
-                Image(systemName: "paperclip")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(IslandPalette.cyan.opacity(0.86))
-                Text("\(fileShelf.items.count)")
-                    .font(.system(size: 12.5, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .monospacedDigit()
+                HStack(spacing: 5) {
+                    Image(systemName: "paperclip")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(IslandPalette.cyan.opacity(0.86))
+                    Text("\(fileShelf.items.count)")
+                        .font(.system(size: 12.5, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .monospacedDigit()
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("暂存了 \(fileShelf.items.count) 个文件")
             }
         }
         .padding(.horizontal, 5)
         .frame(height: panel.compactHeight)
-        .accessibilityLabel(
-            fileShelf.items.isEmpty
-                ? "额度重置倒计时"
-                : "暂存了 \(fileShelf.items.count) 个文件"
-        )
     }
 
     @ViewBuilder
@@ -193,43 +202,18 @@ struct NotchRootView: View {
                         .foregroundStyle(.white)
                 }
                 Spacer()
-                HStack(spacing: 6) {
-                    Button {
-                        sleepPrevention.toggle()
-                    } label: {
-                        Image(systemName: "cup.and.heat.waves.fill")
-                            .font(.system(size: 11.5, weight: .medium))
-                            .frame(width: 26, height: 26)
-                            .background(
-                                sleepPrevention.isEnabled
-                                    ? IslandPalette.cyan.opacity(0.2)
-                                    : Color.white.opacity(0.05)
-                            )
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(
-                        sleepPrevention.isEnabled
-                            ? IslandPalette.cyan
-                            : Color.white.opacity(0.34)
-                    )
-                    .help(sleepPreventionHelp)
-                    .accessibilityLabel("防止电脑休眠")
-                    .accessibilityValue(sleepPrevention.isEnabled ? "已开启" : "已关闭")
-
-                    Button {
-                        usage.refresh()
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 10.5, weight: .medium))
-                            .frame(width: 26, height: 26)
-                            .background(Color.white.opacity(0.07))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.white.opacity(0.8))
-                    .help("立即刷新额度")
+                Button {
+                    usage.refresh()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .frame(width: 26, height: 26)
+                        .background(Color.white.opacity(0.07))
+                        .clipShape(Circle())
                 }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white.opacity(0.8))
+                .help("立即刷新额度")
             }
             .padding(.horizontal, 14)
             .padding(.top, 8)

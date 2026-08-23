@@ -33,6 +33,9 @@ final class NotchPanelController {
         panel.usage = usage
         panel.launchAtLogin = launchAtLogin
         panel.fileShelf = fileShelf
+        panel.toggleSleepPrevention = { [weak sleepPrevention] in
+            sleepPrevention?.toggle()
+        }
         let rootView = NotchRootView(
             usage: usage,
             panel: viewState,
