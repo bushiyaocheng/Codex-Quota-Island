@@ -25,16 +25,25 @@ final class CodexProcessDetector {
 
         guard looksLikeCodex else { return nil }
 
-        let serverURL = appURL
-            .appendingPathComponent("Contents", isDirectory: true)
-            .appendingPathComponent("Resources", isDirectory: true)
-            .appendingPathComponent("codex", isDirectory: false)
-
-        guard FileManager.default.isExecutableFile(atPath: serverURL.path) else { return nil }
+        guard let serverURL = Self.appServerExecutable(in: appURL) else { return nil }
         return CodexInstallation(
             appURL: appURL,
             serverURL: serverURL,
             processIdentifier: application.processIdentifier
         )
+    }
+
+    nonisolated static func appServerExecutable(in appURL: URL) -> URL? {
+        let resourceURL = appURL
+            .appendingPathComponent("Contents", isDirectory: true)
+            .appendingPathComponent("Resources", isDirectory: true)
+        let relativePaths = [
+            "codex-cli/CodexCLI.app/Contents/MacOS/codex",
+            "codex"
+        ]
+
+        return relativePaths
+            .map { resourceURL.appendingPathComponent($0, isDirectory: false) }
+            .first { FileManager.default.isExecutableFile(atPath: $0.path) }
     }
 }
